@@ -1473,6 +1473,47 @@
       }
 
       /* ---------- Toast ---------- */
+      /* ---------- Verify email banner ---------- */
+      .verify-banner {
+        background: linear-gradient(135deg, #fff1d6, #ffe4ea);
+        border-bottom: 1px solid #ffe1ad;
+        padding: 10px 14px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .verify-banner-text {
+        font-size: 0.68rem;
+        color: #a66b13;
+        line-height: 1.45;
+        flex: 1 1 200px;
+      }
+      .verify-banner-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .verify-banner-btn {
+        border: none;
+        border-radius: 99px;
+        padding: 7px 12px;
+        font-size: 0.66rem;
+        font-weight: 800;
+        cursor: pointer;
+        font-family: inherit;
+        background: var(--coral);
+        color: #fff;
+        white-space: nowrap;
+      }
+      .verify-banner-btn.ghost {
+        background: rgba(255, 255, 255, 0.6);
+        color: #a66b13;
+        border: 1px solid #ffe1ad;
+      }
+
       .toast {
         position: fixed;
         bottom: 28px;
@@ -1913,6 +1954,25 @@
         >
           ⚙️
         </button>
+      </div>
+
+      <!-- Verifikasi email banner -->
+      <div class="verify-banner" id="verifyBanner" style="display: none">
+        <div class="verify-banner-text">
+          ✉️ Email <b id="verifyBannerEmail"></b> belum diverifikasi. Buka email
+          kamu (cek juga folder spam) dan klik link verifikasinya.
+        </div>
+        <div class="verify-banner-actions">
+          <button class="verify-banner-btn" onclick="checkEmailVerified()">
+            Saya Sudah Verifikasi
+          </button>
+          <button
+            class="verify-banner-btn ghost"
+            onclick="resendVerificationEmail()"
+          >
+            Kirim Ulang
+          </button>
+        </div>
       </div>
 
       <!-- Screens -->
@@ -3468,11 +3528,19 @@
           openAuthOverlay("login");
           return false;
         }
+        if (!currentUser.emailVerified) {
+          showToast(
+            "✉️ Verifikasi email kamu dulu sebelum menambah transaksi",
+            true,
+          );
+          return false;
+        }
         return true;
       }
 
       function updateAuthUI() {
         const loggedIn = !!currentUser;
+        const verified = loggedIn && currentUser.emailVerified;
         document.getElementById("monthPickerWrap").style.display = loggedIn
           ? "flex"
           : "none";
@@ -3487,7 +3555,46 @@
           : "flex";
         if (loggedIn) {
           document.getElementById("moreAccountEmail").textContent =
-            currentUser.email || currentUser.displayName || "Akun kamu";
+            (currentUser.email || currentUser.displayName || "Akun kamu") +
+            (verified ? "" : " (belum diverifikasi)");
+        }
+
+        const banner = document.getElementById("verifyBanner");
+        if (loggedIn && !verified) {
+          document.getElementById("verifyBannerEmail").textContent =
+            currentUser.email || "";
+          banner.style.display = "flex";
+        } else {
+          banner.style.display = "none";
+        }
+      }
+
+      async function checkEmailVerified() {
+        if (!currentUser) return;
+        try {
+          await currentUser.reload();
+          currentUser = auth.currentUser;
+          updateAuthUI();
+          if (currentUser.emailVerified) {
+            showToast("✓ Email berhasil diverifikasi, sekarang bisa dipakai");
+          } else {
+            showToast(
+              "⚠️ Belum terverifikasi, cek email kamu (termasuk folder spam) dan klik link-nya dulu",
+              true,
+            );
+          }
+        } catch (e) {
+          showToast("⚠️ Gagal memeriksa status verifikasi", true);
+        }
+      }
+
+      async function resendVerificationEmail() {
+        if (!currentUser) return;
+        try {
+          await currentUser.sendEmailVerification();
+          showToast("✓ Email verifikasi terkirim ulang, cek email kamu");
+        } catch (e) {
+          showToast("⚠️ " + authErrorMsg(e), true);
         }
       }
 
@@ -3615,8 +3722,18 @@
           return;
         }
         try {
-          await auth.createUserWithEmailAndPassword(email, password);
-          showToast("✓ Akun berhasil dibuat, selamat datang!");
+          const cred = await auth.createUserWithEmailAndPassword(
+            email,
+            password,
+          );
+          try {
+            await cred.user.sendEmailVerification();
+          } catch (e2) {
+            console.error("Gagal kirim email verifikasi:", e2);
+          }
+          showToast(
+            "✓ Akun dibuat! Cek email kamu untuk verifikasi sebelum mulai mencatat",
+          );
         } catch (e) {
           showToast("⚠️ " + authErrorMsg(e), true);
         }
