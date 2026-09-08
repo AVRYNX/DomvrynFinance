@@ -3187,19 +3187,29 @@
         return slices.find((s) => ang >= s.start && ang <= s.end) || null;
       }
 
+      function sortRowsNewestFirst(rows) {
+        return [...rows].sort((a, b) => {
+          const d = (b.tanggal || "").localeCompare(a.tanggal || "");
+          if (d !== 0) return d;
+          // Tanggal sama -> urutkan berdasarkan waktu input sebenarnya
+          // (id dibuat dari Date.now() saat transaksi disimpan), paling
+          // baru diinput tampil paling atas.
+          return (b.id || 0) - (a.id || 0);
+        });
+      }
+
       function transaksiByBudgetGroup(rows, group) {
-        return rows
-          .filter((r) => {
-            if (r.tipe === "pengeluaran") {
-              return groupOfKategori(r.kategori || "Lainnya") === group;
-            }
-            if (r.tipe === "transfer_saldo") {
-              const ep = transferEndpoints(r);
-              return ep && (ep.fromGroup === group || ep.toGroup === group);
-            }
-            return false;
-          })
-          .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+        const filtered = rows.filter((r) => {
+          if (r.tipe === "pengeluaran") {
+            return groupOfKategori(r.kategori || "Lainnya") === group;
+          }
+          if (r.tipe === "transfer_saldo") {
+            const ep = transferEndpoints(r);
+            return ep && (ep.fromGroup === group || ep.toGroup === group);
+          }
+          return false;
+        });
+        return sortRowsNewestFirst(filtered);
       }
 
       function showBudgetSliceInfo(key) {
@@ -5175,9 +5185,9 @@
 
         listEl.innerHTML = slices
           .map((s) => {
-            const txs = out
-              .filter((r) => normalizeKategori(r.kategori) === s.key)
-              .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+            const txs = sortRowsNewestFirst(
+              out.filter((r) => normalizeKategori(r.kategori) === s.key),
+            );
             const details = txs
               .map(
                 (r) => `
@@ -5383,8 +5393,7 @@
           return;
         }
         empty.style.display = "none";
-        tbody.innerHTML = [...rows]
-          .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""))
+        tbody.innerHTML = sortRowsNewestFirst(rows)
           .map((r) => {
             const isSBL = r.tipe === "pemasukan_tetap";
             const isCarry = r.tipe === "saldo_bulan_lalu";
