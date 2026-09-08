@@ -892,6 +892,20 @@
         border-color: var(--coral);
         color: var(--coral);
       }
+      .btn-edit {
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--ink-3);
+        cursor: pointer;
+        font-size: 0.68rem;
+        padding: 4px 8px;
+        margin-right: 4px;
+      }
+      .btn-edit:hover {
+        border-color: var(--mint-700);
+        color: var(--mint-700);
+      }
 
       .empty {
         text-align: center;
@@ -2096,7 +2110,7 @@
         <div class="modal-sheet">
           <div class="sheet-handle"></div>
           <div class="sheet-head">
-            <h3>Tambah Transaksi</h3>
+            <h3 id="modalAddTitle">Tambah Transaksi</h3>
             <button class="sheet-close" onclick="closeAddModal()">✕</button>
           </div>
 
@@ -2699,6 +2713,7 @@
       let data = [];
       let currentMonth = null;
       let currentTipe = "pemasukan";
+      let editingId = null;
 
       const RATIO = { k: 0.5, w: 0.15, t: 0.15, c: 0.1, h: 0.05, e: 0.05 };
 
@@ -3975,6 +3990,9 @@
 
       function openAddModal() {
         if (!requireAuth()) return;
+        editingId = null;
+        document.getElementById("modalAddTitle").textContent =
+          "Tambah Transaksi";
         document.getElementById("fTanggal").value = todayStr();
         document.getElementById("fKet").value = "";
         document.getElementById("fJumlah").value = "";
@@ -3984,6 +4002,49 @@
         document.getElementById("fTujuanBudget").value = "k";
         document.getElementById("fAlokasiPemasukan").value = "auto";
         setTipe("pemasukan");
+        document.getElementById("modalAdd").classList.add("show");
+      }
+
+      function editTransaksi(id) {
+        if (!requireAuth()) return;
+        const r = data.find((d) => d.id === id);
+        if (!r || r.auto || r.tipe === "pemasukan_tetap") return;
+
+        openAddModal();
+        editingId = id;
+        document.getElementById("modalAddTitle").textContent = "Edit Transaksi";
+
+        document.getElementById("fTanggal").value = r.tanggal;
+        document.getElementById("fKet").value = r.ket || "";
+        document.getElementById("fJumlah").value = Number(
+          r.jml || 0,
+        ).toLocaleString("id-ID");
+
+        if (r.tipe === "pengeluaran") {
+          setTipe("pengeluaran");
+          document.getElementById("fKat").value = r.kategori || "Lainnya";
+          document.getElementById("fMetode").value = r.metode || "cash";
+        } else if (r.tipe === "transfer_saldo") {
+          setTipe("transfer_saldo");
+          const ep = transferEndpoints(r);
+          document.getElementById("fKat").value = ep.fromGroup;
+          document.getElementById("fTujuanBudget").value = ep.toGroup;
+          if (ep.fromGroup === ep.toGroup) {
+            document.getElementById("fArah").value =
+              ep.fromBucket === "cash" ? "cash_bank" : "bank_cash";
+          } else {
+            document.getElementById("fWalletTransfer").value =
+              `${ep.fromBucket}_${ep.toBucket}`;
+          }
+          syncTransferModeUI();
+        } else {
+          setTipe("pemasukan");
+          document.getElementById("fAlokasiPemasukan").value =
+            r.alokasiManual && r.alokasiGroup ? r.alokasiGroup : "auto";
+        }
+
+        document.getElementById("submitLabel").textContent =
+          r.tipe === "transfer_saldo" ? "Update Saldo" : "Update Transaksi";
         document.getElementById("modalAdd").classList.add("show");
       }
 
@@ -4001,6 +4062,9 @@
 
       function closeAddModal() {
         document.getElementById("modalAdd").classList.remove("show");
+        editingId = null;
+        document.getElementById("modalAddTitle").textContent =
+          "Tambah Transaksi";
       }
 
       /* ---------------- Pakai Saldo Celengan modal ---------------- */
@@ -4244,7 +4308,8 @@
         }
 
         const ym = bulanOf(tanggal);
-        const monthRows = rowsForMonth(ym);
+        const monthRows = rowsForMonth(ym).filter((r) => r.id !== editingId);
+        let payload = null;
 
         if (currentTipe === "transfer_saldo") {
           const route = transferWalletEndpoints();
@@ -4270,8 +4335,8 @@
                 : `Pindah ${sourceBudgetName} → ${targetBudgetName}`;
           }
 
-          data.push({
-            id: Date.now(),
+          payload = {
+            id: editingId ?? Date.now(),
             tanggal,
             bulan: ym,
             tipe: "transfer_saldo",
@@ -4284,7 +4349,7 @@
             transferToGroup: route.toGroup,
             transferFromBucket: route.fromBucket,
             transferToBucket: route.toBucket,
-          });
+          };
         } else if (currentTipe === "pengeluaran") {
           const kat = document.getElementById("fKat").value;
           const metode = document.getElementById("fMetode").value;
@@ -4305,8 +4370,8 @@
             return;
           }
 
-          data.push({
-            id: Date.now(),
+          payload = {
+            id: editingId ?? Date.now(),
             tanggal,
             bulan: ym,
             tipe: "pengeluaran",
@@ -4314,7 +4379,7 @@
             jml,
             kategori: kat,
             metode,
-          });
+          };
         } else {
           if (!ket) {
             showToast("⚠️ Isi keterangan pemasukan!", true);
@@ -4325,8 +4390,8 @@
               ? document.getElementById("fAlokasiPemasukan")?.value || "auto"
               : "auto";
 
-          data.push({
-            id: Date.now(),
+          payload = {
+            id: editingId ?? Date.now(),
             tanggal,
             bulan: ym,
             tipe: currentTipe,
@@ -4335,7 +4400,16 @@
             kategori: alokasi !== "auto" ? BUDGET_GROUPS[alokasi].label : "",
             alokasiManual: currentTipe === "pemasukan" && alokasi !== "auto",
             alokasiGroup: alokasi !== "auto" ? alokasi : "",
-          });
+          };
+        }
+
+        const isEditing = editingId != null;
+        if (isEditing) {
+          const idx = data.findIndex((d) => d.id === editingId);
+          if (idx >= 0) data[idx] = payload;
+          else data.push(payload);
+        } else {
+          data.push(payload);
         }
 
         await saveData();
@@ -4350,9 +4424,13 @@
         renderHistory();
         closeAddModal();
         showToast(
-          currentTipe === "transfer_saldo"
-            ? "✓ Saldo berhasil dipindahkan"
-            : "✓ Transaksi ditambahkan",
+          isEditing
+            ? currentTipe === "transfer_saldo"
+              ? "✓ Saldo berhasil diperbarui"
+              : "✓ Transaksi diperbarui"
+            : currentTipe === "transfer_saldo"
+              ? "✓ Saldo berhasil dipindahkan"
+              : "✓ Transaksi ditambahkan",
         );
       }
 
@@ -5467,7 +5545,14 @@
               <td><span class="badge ${badgeClass}">${badgeLabel}</span>${categoryInfo ? `<div style="font-size:.62rem;color:var(--ink-3);margin-top:3px">${categoryInfo}</div>` : ""}</td>
               <td style="font-size:.66rem;color:var(--ink-2);min-width:105px">${methodInfo}</td>
               <td class="amount ${amtClass}" style="white-space:nowrap">${sign}${fmt(r.jml)}</td>
-              <td>${r.auto ? "" : `<button class="btn-del" onclick="hapusTransaksi(${r.id})">✕</button>`}</td>
+              <td style="white-space:nowrap">${
+                r.auto
+                  ? ""
+                  : (r.tipe === "pemasukan_tetap"
+                      ? ""
+                      : `<button class="btn-edit" onclick="editTransaksi(${r.id})">✎</button>`) +
+                    `<button class="btn-del" onclick="hapusTransaksi(${r.id})">✕</button>`
+              }</td>
             </tr>`;
           })
           .join("");
