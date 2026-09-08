@@ -2442,10 +2442,18 @@
                 </button>
               </div>
               <div class="pw-hint">
-                <div class="pw-hint-item" id="regHintLen">Minimal 8 karakter</div>
-                <div class="pw-hint-item" id="regHintUpper">Ada huruf besar (A-Z)</div>
-                <div class="pw-hint-item" id="regHintLower">Ada huruf kecil (a-z)</div>
-                <div class="pw-hint-item" id="regHintSym">Ada angka atau simbol</div>
+                <div class="pw-hint-item" id="regHintLen">
+                  Minimal 8 karakter
+                </div>
+                <div class="pw-hint-item" id="regHintUpper">
+                  Ada huruf besar (A-Z)
+                </div>
+                <div class="pw-hint-item" id="regHintLower">
+                  Ada huruf kecil (a-z)
+                </div>
+                <div class="pw-hint-item" id="regHintSym">
+                  Ada angka atau simbol
+                </div>
               </div>
             </div>
             <div class="field">
@@ -2467,7 +2475,9 @@
                   👁️
                 </button>
               </div>
-              <div class="pw-mismatch" id="regConfirmNote">Password belum sama persis</div>
+              <div class="pw-mismatch" id="regConfirmNote">
+                Password belum sama persis
+              </div>
             </div>
             <button
               class="btn-auth-submit daftar"
@@ -2558,8 +2568,9 @@
           <div id="authViewLupa" style="display: none">
             <div class="auth-title">Reset Password</div>
             <div class="auth-switch">
-              Masukkan email yang pernah kamu daftarkan. Kami akan kirim link
-              reset password ke email itu.
+              Masukkan email akun kamu. Kami akan kirim email konfirmasi untuk
+              memastikan benar kamu yang minta reset — buka email itu dan klik
+              tombol konfirmasi untuk lanjut atur password baru di sini.
             </div>
             <div class="field">
               <label>Email</label>
@@ -2573,10 +2584,9 @@
             <button
               class="btn-auth-submit masuk"
               id="btnLupaSubmit"
-              disabled
               onclick="doForgotPassword()"
             >
-              Kirim Link Reset
+              Kirim Konfirmasi ke Email
             </button>
             <div class="auth-forgot">
               <span class="auth-link" onclick="switchAuthView('login')"
@@ -2611,10 +2621,18 @@
                 </button>
               </div>
               <div class="pw-hint">
-                <div class="pw-hint-item" id="resetHintLen">Minimal 8 karakter</div>
-                <div class="pw-hint-item" id="resetHintUpper">Ada huruf besar (A-Z)</div>
-                <div class="pw-hint-item" id="resetHintLower">Ada huruf kecil (a-z)</div>
-                <div class="pw-hint-item" id="resetHintSym">Ada angka atau simbol</div>
+                <div class="pw-hint-item" id="resetHintLen">
+                  Minimal 8 karakter
+                </div>
+                <div class="pw-hint-item" id="resetHintUpper">
+                  Ada huruf besar (A-Z)
+                </div>
+                <div class="pw-hint-item" id="resetHintLower">
+                  Ada huruf kecil (a-z)
+                </div>
+                <div class="pw-hint-item" id="resetHintSym">
+                  Ada angka atau simbol
+                </div>
               </div>
             </div>
             <div class="field">
@@ -2636,12 +2654,13 @@
                   👁️
                 </button>
               </div>
-              <div class="pw-mismatch" id="resetConfirmNote">Password belum sama persis</div>
+              <div class="pw-mismatch" id="resetConfirmNote">
+                Password belum sama persis
+              </div>
             </div>
             <button
               class="btn-auth-submit masuk"
               id="btnResetSubmit"
-              disabled
               onclick="doConfirmReset()"
             >
               Reset Password
@@ -3613,12 +3632,17 @@
 
       async function doForgotPassword() {
         const email = document.getElementById("lupaEmail").value.trim();
+        if (!email.includes("@")) {
+          showToast("⚠️ Isi email yang valid dulu", true);
+          return;
+        }
         try {
           await auth.sendPasswordResetEmail(email, {
             url: window.location.origin + window.location.pathname,
+            handleCodeInApp: true,
           });
           showToast(
-            "✓ Link reset password sudah dikirim, cek email kamu (termasuk folder spam)",
+            "✓ Email konfirmasi sudah dikirim, cek email kamu (termasuk folder spam)",
           );
           switchAuthView("login");
         } catch (e) {
@@ -3656,6 +3680,19 @@
       async function doConfirmReset() {
         if (!pendingResetCode) return;
         const newPassword = document.getElementById("resetNewPassword").value;
+        const confirm = document.getElementById("resetNewConfirm").value;
+        const c = passwordChecks(newPassword);
+        if (!(c.len && c.upper && c.lower && c.sym)) {
+          showToast(
+            "⚠️ Password minimal 8 karakter, ada huruf besar, kecil & simbol/angka",
+            true,
+          );
+          return;
+        }
+        if (newPassword !== confirm) {
+          showToast("⚠️ Konfirmasi password tidak cocok", true);
+          return;
+        }
         try {
           await auth.confirmPasswordReset(pendingResetCode, newPassword);
           showToast(
