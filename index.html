@@ -1,0 +1,5206 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    />
+    <title>Dompetin — Catatan Keuangan</title>
+    <meta name="theme-color" content="#6d5dfc" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Firebase SDK (compat build, jalan langsung dari browser, tanpa server) -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+    <style>
+      :root {
+        --mint-900: #2f2748;
+        --mint-700: #6d5dfc;
+        --mint-500: #8b7cf6;
+        --mint-400: #a78bfa;
+        --mint-200: #ddd6fe;
+        --mint-100: #f1edff;
+        --mint-50: #fbf8f3;
+
+        --coral: #ff7a8a;
+        --coral-soft: #ffe4ea;
+        --gold: #f4b860;
+        --gold-soft: #fff1d6;
+        --sky: #67b7dc;
+        --sky-soft: #e2f3fb;
+
+        --ink: #272238;
+        --ink-2: #6f6780;
+        --ink-3: #aaa2b8;
+        --white: #ffffff;
+        --line: rgba(39, 34, 56, 0.09);
+
+        --shadow-soft: 0 18px 42px rgba(47, 39, 72, 0.18);
+        --shadow-card: 0 5px 18px rgba(47, 39, 72, 0.07);
+        --r-lg: 24px;
+        --r-md: 18px;
+        --r-sm: 12px;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        background: var(--mint-900);
+      }
+      body {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        color: var(--ink);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+      }
+      button {
+        font-family: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--mint-700);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+      .num {
+        font-family: "DM Mono", monospace;
+      }
+
+      /* ---------- App shell (phone-frame look) ---------- */
+      .app-shell {
+        width: 100%;
+        max-width: 432px;
+        min-height: 100vh;
+        background: var(--mint-50);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 0 60px rgba(0, 0, 0, 0.25);
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ---------- Topbar ---------- */
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 18px 16px 14px;
+        background: linear-gradient(
+          160deg,
+          var(--mint-700),
+          var(--mint-500) 70%
+        );
+        color: var(--white);
+        flex-shrink: 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex: 1;
+        min-width: 0;
+      }
+      .brand-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+      }
+      .brand-text {
+        font-family: "Baloo 2", sans-serif;
+        font-weight: 700;
+        font-size: 1.12rem;
+        letter-spacing: 0.2px;
+      }
+      .brand-tag {
+        font-size: 0.62rem;
+        color: rgba(255, 255, 255, 0.78);
+        font-weight: 500;
+        margin-top: -2px;
+      }
+      .month-pill {
+        display: flex;
+        gap: 6px;
+      }
+      .month-pill select {
+        appearance: none;
+        -webkit-appearance: none;
+        border: none;
+        background: rgba(255, 255, 255, 0.2);
+        color: var(--white);
+        font-weight: 700;
+        font-size: 0.78rem;
+        padding: 8px 26px 8px 12px;
+        border-radius: 99px;
+        font-family: inherit;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0L5 6L10 0Z' fill='white'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+      }
+      .month-pill select#yearPicker {
+        padding-right: 24px;
+      }
+      .month-pill select option {
+        color: #000;
+      }
+      .btn-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.18);
+        border: none;
+        color: #fff;
+        font-size: 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s;
+      }
+      .btn-icon:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      /* ---------- Screens ---------- */
+      .screens {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 16px 110px;
+      }
+      .screen {
+        display: none;
+        animation: fadeUp 0.35s ease;
+      }
+      .screen.active {
+        display: block;
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .section-title {
+        font-size: 0.66rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        color: var(--ink-3);
+        margin: 22px 2px 10px;
+      }
+      .section-title:first-child {
+        margin-top: 0;
+      }
+
+      /* ---------- Hero card ---------- */
+      .hero {
+        background: linear-gradient(135deg, var(--mint-700), var(--mint-500));
+        border-radius: var(--r-lg);
+        padding: 20px 20px 18px;
+        color: #fff;
+        margin-top: 14px;
+        box-shadow: var(--shadow-soft);
+        position: relative;
+        overflow: hidden;
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        right: -30px;
+        top: -30px;
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .hero-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.8);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .hero-val {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-top: 4px;
+        letter-spacing: -0.5px;
+      }
+      .hero-sub {
+        display: flex;
+        gap: 18px;
+        margin-top: 14px;
+        position: relative;
+        z-index: 1;
+      }
+      .hero-sub div {
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.88);
+      }
+      .hero-sub b {
+        display: block;
+        font-size: 0.92rem;
+        margin-top: 2px;
+        font-weight: 700;
+      }
+
+      /* ---------- Budget cards ---------- */
+      .budget-card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        box-shadow: var(--shadow-card);
+      }
+      .budget-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+      }
+      .budget-name {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-weight: 700;
+        font-size: 0.84rem;
+      }
+      .budget-pct {
+        font-size: 0.66rem;
+        color: var(--ink-3);
+        font-weight: 600;
+      }
+      .budget-amt {
+        font-size: 0.95rem;
+        font-weight: 700;
+      }
+      .wallet-split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 10px 0 9px;
+      }
+      .wallet-box {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 9px 10px;
+        background: var(--mint-50);
+      }
+      .wallet-box.bank {
+        background: linear-gradient(135deg, #f1edff, #fff);
+        border-color: #ddd6fe;
+      }
+      .wallet-box.cash {
+        background: linear-gradient(135deg, #fff1d6, #fff);
+        border-color: #ffe1ad;
+      }
+      .wallet-label {
+        font-size: 0.6rem;
+        color: var(--ink-3);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .wallet-value {
+        font-family: "DM Mono", monospace;
+        font-size: 0.77rem;
+        font-weight: 700;
+        margin-top: 3px;
+        color: var(--ink);
+        word-break: break-word;
+      }
+      .wallet-value.minus {
+        color: var(--coral);
+      }
+      .prog-track {
+        height: 7px;
+        border-radius: 99px;
+        background: var(--mint-100);
+        overflow: hidden;
+        position: relative;
+      }
+      .prog-fill {
+        height: 100%;
+        border-radius: 99px;
+        transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .prog-fill.n {
+        background: linear-gradient(90deg, var(--mint-700), var(--mint-400));
+      }
+      .prog-fill.w {
+        background: linear-gradient(90deg, var(--gold), #ffd58a);
+      }
+      .prog-fill.o {
+        background: linear-gradient(90deg, var(--coral), #ff9c9b);
+        animation: pulse 1.1s infinite;
+      }
+      .prog-over {
+        position: absolute;
+        right: -2px;
+        top: 0;
+        height: 100%;
+        background: linear-gradient(90deg, var(--coral), #ff9c9b);
+        border-radius: 0 99px 99px 0;
+        border-left: 2px solid #fff;
+        animation: pulse 1.1s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.45;
+        }
+      }
+      .prog-info {
+        font-size: 0.65rem;
+        color: var(--ink-3);
+        margin-top: 5px;
+      }
+      .prog-info b.ok {
+        color: var(--mint-700);
+      }
+      .prog-info b.bad {
+        color: var(--coral);
+      }
+      .over-flag {
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--coral);
+        margin-top: 5px;
+      }
+      .sbl-note {
+        font-size: 0.65rem;
+        color: var(--mint-700);
+        margin-top: 5px;
+      }
+      .budget-card {
+        cursor: pointer;
+        transition:
+          transform 0.16s ease,
+          border-color 0.16s ease,
+          box-shadow 0.16s ease;
+      }
+      .budget-card:hover,
+      .budget-card.open {
+        transform: translateY(-1px);
+        border-color: rgba(109, 93, 252, 0.28);
+        box-shadow: 0 10px 24px rgba(47, 39, 72, 0.1);
+      }
+      .tap-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 8px;
+        color: var(--ink-3);
+        font-size: 0.61rem;
+        font-weight: 700;
+      }
+      .budget-detail {
+        display: none;
+        margin-top: 10px;
+        background: var(--mint-50);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+      .budget-detail.visible {
+        display: block;
+        animation: fadeUp 0.22s ease;
+      }
+      .budget-detail-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.68rem;
+        color: var(--ink-2);
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .budget-detail-list {
+        border-top: 1px solid var(--line);
+        margin-top: 8px;
+        padding-top: 4px;
+      }
+      .budget-detail-note {
+        font-size: 0.68rem;
+        color: var(--ink-2);
+        line-height: 1.45;
+      }
+      .donut-block canvas,
+      #spendDonut,
+      #barCanvas {
+        cursor: pointer;
+      }
+      .legend-item {
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 4px 7px;
+        transition:
+          background 0.15s,
+          transform 0.15s;
+      }
+      .legend-item:hover {
+        background: var(--mint-100);
+        transform: translateY(-1px);
+      }
+
+      /* ---------- Donut + legend ---------- */
+      .donut-block {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        padding: 16px;
+        box-shadow: var(--shadow-card);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        justify-content: center;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.68rem;
+        color: var(--ink-2);
+        font-weight: 500;
+      }
+      .legend-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      /* ---------- Card generic ---------- */
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        padding: 16px;
+        box-shadow: var(--shadow-card);
+        margin-bottom: 14px;
+      }
+
+      /* ---------- Bar chart ---------- */
+      .bar-card {
+        padding: 16px 10px 6px;
+      }
+      .bar-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 6px 8px;
+      }
+      .ratio-wrap {
+        padding: 4px 6px 2px;
+      }
+      .ratio-lbl {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.64rem;
+        color: var(--ink-2);
+        margin-bottom: 5px;
+        font-weight: 600;
+      }
+      .ratio-track {
+        background: var(--mint-100);
+        border-radius: 99px;
+        height: 7px;
+        overflow: hidden;
+        display: flex;
+      }
+      .ratio-in {
+        background: var(--mint-500);
+        border-radius: 99px 0 0 99px;
+      }
+      .ratio-out {
+        background: var(--coral);
+        border-radius: 0 99px 99px 0;
+      }
+      .ratio-note {
+        font-size: 0.66rem;
+        color: var(--ink-3);
+        margin-top: 7px;
+        text-align: center;
+      }
+
+      /* ---------- Spend breakdown ---------- */
+      .spend-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        border-radius: 10px;
+        padding: 9px 8px;
+        transition: background 0.15s;
+        border: 1px solid transparent;
+      }
+      .spend-row:hover {
+        background: var(--mint-50);
+      }
+      .spend-row.open {
+        background: var(--mint-50);
+        border-color: var(--line);
+        border-radius: 10px 10px 0 0;
+      }
+      .spend-icon {
+        font-size: 1.05rem;
+        width: 22px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .spend-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .spend-name {
+        font-size: 0.78rem;
+        font-weight: 700;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .spend-name span.pct {
+        font-size: 0.62rem;
+        color: var(--ink-3);
+        font-weight: 600;
+      }
+      .spend-bar-bg {
+        background: var(--mint-100);
+        border-radius: 99px;
+        height: 5px;
+        overflow: hidden;
+      }
+      .spend-bar-fill {
+        height: 100%;
+        border-radius: 99px;
+      }
+      .spend-val {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--coral);
+        white-space: nowrap;
+        min-width: 78px;
+        text-align: right;
+      }
+      .spend-caret {
+        font-size: 0.6rem;
+        color: var(--ink-3);
+        transition: transform 0.2s;
+      }
+      .spend-row.open .spend-caret {
+        transform: rotate(180deg);
+      }
+      .spend-detail {
+        display: none;
+        background: var(--mint-50);
+        border: 1px solid var(--line);
+        border-top: none;
+        border-radius: 0 0 10px 10px;
+        padding: 8px 12px 10px;
+      }
+      .spend-detail.visible {
+        display: block;
+      }
+      .spend-detail-item {
+        display: flex;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 0.72rem;
+      }
+      .spend-detail-item:last-child {
+        border-bottom: none;
+      }
+      .spend-detail-date {
+        font-size: 0.62rem;
+        color: var(--ink-3);
+        font-family: "DM Mono", monospace;
+        min-width: 62px;
+        flex-shrink: 0;
+      }
+      .spend-detail-ket {
+        flex: 1;
+        padding: 0 8px;
+      }
+      .spend-detail-jml {
+        font-family: "DM Mono", monospace;
+        font-weight: 600;
+        color: var(--coral);
+        white-space: nowrap;
+      }
+
+      /* ---------- Celengan ---------- */
+      .cel-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .cel-box {
+        border-radius: var(--r-md);
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border: 1.5px solid;
+        cursor: pointer;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .cel-box:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(47, 39, 72, 0.08);
+      }
+      .cel-box.t {
+        background: linear-gradient(135deg, var(--mint-100), #fff);
+        border-color: var(--mint-200);
+      }
+      .cel-box.w {
+        background: linear-gradient(135deg, #fff0f6, #fff);
+        border-color: #ffd1e3;
+      }
+      .cel-box.c {
+        background: linear-gradient(135deg, var(--gold-soft), #fff);
+        border-color: #ffe1ad;
+      }
+      .cel-box.h {
+        background: linear-gradient(135deg, #f0ecfc, #fff);
+        border-color: #ded3f7;
+      }
+      .cel-box.e {
+        background: linear-gradient(135deg, #fff8e6, #fff);
+        border-color: #ffe7a8;
+      }
+      .cel-icon {
+        font-size: 1.6rem;
+        flex-shrink: 0;
+      }
+      .cel-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--ink-2);
+      }
+      .cel-sub {
+        font-size: 0.6rem;
+        color: var(--ink-3);
+        margin-top: 1px;
+      }
+      .cel-val {
+        font-size: 1.18rem;
+        font-weight: 700;
+        font-family: "DM Mono", monospace;
+        margin-top: 3px;
+      }
+      .cel-box.t .cel-val {
+        color: var(--mint-700);
+      }
+      .cel-box.w .cel-val {
+        color: #d66ba0;
+      }
+      .cel-box.c .cel-val {
+        color: #c98a1c;
+      }
+      .cel-box.h .cel-val {
+        color: #7b5fc4;
+      }
+      .cel-box.e .cel-val {
+        color: #b7791f;
+      }
+
+      .toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin-top: 14px;
+        background: var(--mint-50);
+        border: 1.5px solid var(--line);
+        border-radius: var(--r-sm);
+        padding: 11px 14px;
+        cursor: pointer;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--ink-2);
+      }
+      .toggle-btn:hover {
+        border-color: var(--mint-400);
+        color: var(--ink);
+      }
+      .toggle-caret {
+        font-size: 0.62rem;
+        color: var(--ink-3);
+        transition: transform 0.3s;
+      }
+      .toggle-caret.open {
+        transform: rotate(180deg);
+      }
+      .table-collapsible {
+        overflow: hidden;
+        max-height: 0;
+        transition:
+          max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+          opacity 0.3s;
+        opacity: 0;
+      }
+      .table-collapsible.open {
+        max-height: 2000px;
+        opacity: 1;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        margin-top: 12px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.74rem;
+        min-width: 340px;
+      }
+      thead th {
+        text-align: left;
+        padding: 7px 8px;
+        font-size: 0.58rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--ink-3);
+        border-bottom: 1.5px solid var(--line);
+      }
+      tbody tr {
+        border-bottom: 1px solid var(--line);
+      }
+      tbody tr:hover {
+        background: var(--mint-50);
+      }
+      tbody td {
+        padding: 9px 8px;
+        vertical-align: middle;
+      }
+
+      /* ---------- History ---------- */
+      .badge {
+        display: inline-block;
+        border-radius: 6px;
+        font-size: 0.6rem;
+        font-weight: 700;
+        padding: 3px 7px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .badge.pemasukan {
+        background: var(--mint-100);
+        color: var(--mint-700);
+      }
+      .badge.pengeluaran {
+        background: var(--coral-soft);
+        color: #d6403e;
+      }
+      .badge.pemasukan_tetap {
+        background: var(--sky-soft);
+        color: #2c79b5;
+      }
+      .badge.saldo_bulan_lalu {
+        background: var(--gold-soft);
+        color: #c98a1c;
+      }
+      .badge.transfer_saldo {
+        background: #eef2ff;
+        color: #6656d9;
+      }
+      .badge.pengeluaran_celengan {
+        background: #fdeedd;
+        color: #b7791f;
+      }
+      .amount {
+        font-family: "DM Mono", monospace;
+        font-weight: 600;
+      }
+      .amount.pos {
+        color: var(--mint-700);
+      }
+      .amount.neg {
+        color: var(--coral);
+      }
+      .amount.sbl {
+        color: var(--sky);
+      }
+      .amount.carry {
+        color: #c98a1c;
+      }
+      .btn-del {
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--ink-3);
+        cursor: pointer;
+        font-size: 0.68rem;
+        padding: 4px 8px;
+      }
+      .btn-del:hover {
+        border-color: var(--coral);
+        color: var(--coral);
+      }
+
+      .empty {
+        text-align: center;
+        color: var(--ink-3);
+        padding: 34px 10px;
+        font-size: 0.82rem;
+        line-height: 1.5;
+      }
+      .empty-emoji {
+        font-size: 1.8rem;
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      /* ---------- More screen ---------- */
+      .more-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        box-shadow: var(--shadow-card);
+      }
+      .more-icon {
+        font-size: 1.3rem;
+        width: 30px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .more-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .more-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+      .more-desc {
+        font-size: 0.68rem;
+        color: var(--ink-2);
+        margin-top: 2px;
+      }
+      .more-btn {
+        background: var(--mint-50);
+        border: 1.5px solid var(--mint-200);
+        border-radius: 9px;
+        color: var(--mint-700);
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 0.74rem;
+        padding: 8px 14px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .more-btn:hover {
+        background: var(--mint-100);
+      }
+      .more-btn.danger {
+        border-color: var(--coral-soft);
+        color: var(--coral);
+        background: #fff5f5;
+      }
+      .more-btn.danger:hover {
+        background: var(--coral-soft);
+      }
+      .about-box {
+        background: var(--mint-50);
+        border: 1px solid var(--mint-200);
+        border-radius: var(--r-md);
+        padding: 16px;
+        font-size: 0.74rem;
+        color: var(--ink-2);
+        line-height: 1.6;
+      }
+      .about-box b {
+        color: var(--ink);
+      }
+
+      /* ---------- Bottom nav + FAB ---------- */
+      .bottom-dock {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        justify-content: center;
+        padding: 0 16px 16px;
+        pointer-events: none;
+      }
+      .bottom-nav {
+        pointer-events: auto;
+        width: 100%;
+        max-width: 400px;
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 10px 28px rgba(15, 70, 62, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        position: relative;
+      }
+      .nav-half {
+        display: flex;
+        gap: 6px;
+      }
+      .nav-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 12px;
+        border-radius: 14px;
+        color: var(--ink-3);
+        transition:
+          color 0.15s,
+          background 0.15s;
+      }
+      .nav-btn .ic {
+        font-size: 1.15rem;
+      }
+      .nav-btn .lb {
+        font-size: 0.58rem;
+        font-weight: 700;
+      }
+      .nav-btn.active {
+        color: var(--mint-700);
+        background: var(--mint-100);
+      }
+      .fab {
+        pointer-events: auto;
+        position: absolute;
+        top: -26px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--mint-500), var(--mint-700));
+        color: #fff;
+        font-size: 1.6rem;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 20px rgba(14, 138, 120, 0.4);
+        transition: transform 0.15s;
+      }
+      .fab:hover {
+        transform: translateX(-50%) translateY(-2px);
+      }
+      .fab:active {
+        transform: translateX(-50%) scale(0.94);
+      }
+
+      /* ---------- Modal sheet ---------- */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(11, 40, 35, 0.45);
+        display: none;
+        align-items: flex-end;
+        justify-content: center;
+        z-index: 50;
+      }
+      .modal-overlay.show {
+        display: flex;
+      }
+      .modal-sheet {
+        width: 100%;
+        max-width: 432px;
+        background: #fff;
+        border-radius: 26px 26px 0 0;
+        padding: 20px 20px 26px;
+        max-height: 88vh;
+        overflow-y: auto;
+        animation: slideUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      @keyframes slideUp {
+        from {
+          transform: translateY(100%);
+        }
+        to {
+          transform: translateY(0);
+        }
+      }
+      .sheet-handle {
+        width: 38px;
+        height: 4px;
+        background: var(--line);
+        border-radius: 99px;
+        margin: 0 auto 16px;
+      }
+      .sheet-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+      .sheet-head h3 {
+        font-family: "Baloo 2", sans-serif;
+        font-size: 1.1rem;
+        color: var(--ink);
+      }
+      .sheet-close {
+        background: var(--mint-50);
+        border: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        color: var(--ink-2);
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+      .field label {
+        font-size: 0.66rem;
+        font-weight: 700;
+        color: var(--ink-2);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+      .field input,
+      .field select {
+        background: var(--mint-50);
+        border: 1.5px solid var(--line);
+        border-radius: var(--r-sm);
+        color: var(--ink);
+        font-family: inherit;
+        font-size: 0.88rem;
+        padding: 11px 12px;
+        outline: none;
+        width: 100%;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .field input:focus,
+      .field select:focus {
+        border-color: var(--mint-500);
+        box-shadow: 0 0 0 3px rgba(23, 184, 157, 0.14);
+      }
+      .type-toggle {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .type-opt {
+        flex: 1;
+        text-align: center;
+        padding: 11px 6px;
+        border-radius: var(--r-sm);
+        border: 1.5px solid var(--line);
+        background: var(--mint-50);
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        color: var(--ink-2);
+        transition: 0.15s;
+      }
+      .type-opt.sel-in {
+        border-color: var(--mint-500);
+        background: var(--mint-100);
+        color: var(--mint-700);
+      }
+      .type-opt.sel-sbl {
+        border-color: var(--sky);
+        background: var(--sky-soft);
+        color: #2c79b5;
+      }
+      .type-opt.sel-out {
+        border-color: var(--coral);
+        background: var(--coral-soft);
+        color: #d6403e;
+      }
+      .type-opt.sel-transfer {
+        border-color: var(--gold);
+        background: var(--gold-soft);
+        color: #b7791f;
+      }
+      .transfer-route {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .transfer-route-box {
+        background: var(--gold-soft);
+        border: 1px solid #ffe1ad;
+        border-radius: var(--r-sm);
+        padding: 10px 12px;
+      }
+
+      .transfer-route-title {
+        font-size: 0.62rem;
+        color: #a66b13;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 5px;
+      }
+
+      .transfer-route-value {
+        font-size: 0.76rem;
+        color: var(--ink);
+        font-weight: 700;
+        line-height: 1.4;
+      }
+
+      .hint-sbl {
+        background: var(--sky-soft);
+        border: 1px solid #bfe0f5;
+        border-radius: var(--r-sm);
+        padding: 10px 12px;
+        font-size: 0.68rem;
+        color: #2c79b5;
+        margin-bottom: 14px;
+      }
+      .btn-submit {
+        width: 100%;
+        background: linear-gradient(135deg, var(--mint-500), var(--mint-700));
+        color: #fff;
+        border: none;
+        border-radius: var(--r-sm);
+        padding: 14px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(14, 138, 120, 0.28);
+      }
+      .btn-submit:active {
+        transform: scale(0.98);
+      }
+
+      /* ---------- Auth (Masuk / Daftar) ---------- */
+      .topbar-auth {
+        display: flex;
+        gap: 7px;
+        flex-shrink: 0;
+      }
+      .btn-auth {
+        border: none;
+        border-radius: 99px;
+        padding: 8px 13px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+        font-family: inherit;
+        transition: 0.15s;
+      }
+      .btn-auth-masuk {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
+      .btn-auth-masuk:hover {
+        background: rgba(255, 255, 255, 0.32);
+      }
+      .btn-auth-daftar {
+        background: var(--coral);
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(255, 122, 138, 0.45);
+      }
+      .btn-auth-daftar:hover {
+        filter: brightness(1.06);
+      }
+      .auth-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(11, 40, 35, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 90;
+        padding: 20px;
+      }
+      .auth-overlay.show {
+        display: flex;
+      }
+      .auth-card {
+        position: relative;
+        width: 100%;
+        max-width: 392px;
+        background: #fff;
+        border-radius: var(--r-lg);
+        padding: 30px 22px 24px;
+        max-height: 92vh;
+        overflow-y: auto;
+        animation: fadeUp 0.3s ease;
+      }
+      .auth-close {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: none;
+        background: var(--mint-50);
+        color: var(--ink-2);
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+      .auth-title {
+        font-family: "Baloo 2", sans-serif;
+        font-weight: 700;
+        font-size: 1.22rem;
+        text-align: center;
+        color: var(--ink);
+        margin-bottom: 7px;
+      }
+      .auth-switch {
+        text-align: center;
+        font-size: 0.78rem;
+        color: var(--ink-2);
+        margin-bottom: 18px;
+        line-height: 1.5;
+      }
+      .auth-link {
+        color: var(--coral);
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+      .btn-google {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: #fff;
+        border: 1.5px solid var(--line);
+        border-radius: var(--r-sm);
+        padding: 12px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: var(--ink);
+        cursor: pointer;
+        margin-bottom: 16px;
+        font-family: inherit;
+      }
+      .btn-google:hover {
+        background: var(--mint-50);
+      }
+      .auth-or {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 2px 0 18px;
+        color: var(--ink-3);
+        font-size: 0.66rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+      .auth-or::before,
+      .auth-or::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--line);
+      }
+      .btn-auth-submit {
+        width: 100%;
+        border: none;
+        border-radius: var(--r-sm);
+        padding: 14px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        font-family: inherit;
+        background: var(--line);
+        color: var(--ink-3);
+        cursor: not-allowed;
+        transition: 0.15s;
+      }
+      .btn-auth-submit.ready {
+        cursor: pointer;
+      }
+      .btn-auth-submit.ready.daftar {
+        background: linear-gradient(135deg, var(--coral), #ff5f74);
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(255, 122, 138, 0.32);
+      }
+      .btn-auth-submit.ready.masuk {
+        background: linear-gradient(135deg, var(--mint-500), var(--mint-700));
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(14, 138, 120, 0.28);
+      }
+      .auth-forgot {
+        text-align: center;
+        margin-top: 14px;
+        font-size: 0.78rem;
+      }
+
+      /* ---------- Toast ---------- */
+      .toast {
+        position: fixed;
+        bottom: 28px;
+        left: 50%;
+        transform: translate(-50%, 14px);
+        max-width: 340px;
+        width: 88%;
+        background: var(--ink);
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 12px 18px;
+        border-radius: 14px;
+        text-align: center;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.25);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity 0.3s,
+          transform 0.3s;
+        z-index: 80;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      .toast.err {
+        background: #c0413f;
+      }
+
+      /* ---------- Loading overlay ---------- */
+      .loading-ov {
+        position: absolute;
+        inset: 0;
+        background: var(--mint-50);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        z-index: 60;
+      }
+      .loading-pig {
+        font-size: 2.4rem;
+        animation: bounce 1s infinite ease-in-out;
+      }
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+      .loading-txt {
+        font-size: 0.78rem;
+        color: var(--ink-2);
+        font-weight: 600;
+      }
+
+      /* ---------- Aesthetic soft-lavender theme override ---------- */
+      .topbar {
+        background:
+          radial-gradient(
+            circle at 10% 0%,
+            rgba(255, 255, 255, 0.22),
+            transparent 28%
+          ),
+          linear-gradient(135deg, #392f5a 0%, #6d5dfc 58%, #f4b860 135%);
+      }
+      .hero {
+        background:
+          radial-gradient(
+            circle at 90% 0%,
+            rgba(255, 255, 255, 0.28),
+            transparent 32%
+          ),
+          linear-gradient(135deg, #6d5dfc 0%, #8b7cf6 58%, #ff8fab 125%);
+        box-shadow: 0 18px 44px rgba(109, 93, 252, 0.24);
+      }
+      .hero::after {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .fab,
+      .btn-submit {
+        background: linear-gradient(135deg, #ff8fab, #8b7cf6);
+        box-shadow: 0 10px 22px rgba(139, 124, 246, 0.32);
+      }
+      .bottom-nav {
+        box-shadow: 0 14px 34px rgba(47, 39, 72, 0.16);
+      }
+      .card,
+      .budget-card,
+      .donut-block,
+      .more-item {
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(10px);
+      }
+      .prog-track,
+      .ratio-track,
+      .spend-bar-bg {
+        background: #eee9ff;
+      }
+      .prog-fill.n {
+        background: linear-gradient(90deg, #6d5dfc, #a78bfa);
+      }
+      .prog-fill.w {
+        background: linear-gradient(90deg, #f4b860, #ffd98f);
+      }
+      .prog-fill.o,
+      .prog-over {
+        background: linear-gradient(90deg, #ff7a8a, #ffb3bf);
+      }
+      .nav-btn.active {
+        color: #6d5dfc;
+        background: #f1edff;
+      }
+      .more-btn {
+        background: #f1edff;
+        border-color: #ddd6fe;
+        color: #6d5dfc;
+      }
+      .more-btn:hover {
+        background: #e9e2ff;
+      }
+      .type-opt.sel-in {
+        border-color: #8b7cf6;
+        background: #f1edff;
+        color: #6d5dfc;
+      }
+      .field input:focus,
+      .field select:focus {
+        border-color: #8b7cf6;
+        box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.14);
+      }
+
+      /* ---------- Responsive desktop / laptop layout ---------- */
+      @media (min-width: 768px) {
+        html,
+        body {
+          min-height: 100%;
+          background:
+            radial-gradient(
+              circle at 12% 10%,
+              rgba(167, 139, 250, 0.22),
+              transparent 28%
+            ),
+            radial-gradient(
+              circle at 88% 90%,
+              rgba(255, 122, 138, 0.16),
+              transparent 30%
+            ),
+            #eeeaff;
+        }
+
+        body {
+          padding: 22px;
+          align-items: stretch;
+        }
+
+        .app-shell {
+          width: min(1280px, 100%);
+          max-width: 1280px;
+          min-height: calc(100vh - 44px);
+          height: calc(100vh - 44px);
+          border-radius: 28px;
+          overflow: hidden;
+          box-shadow: 0 24px 70px rgba(47, 39, 72, 0.18);
+        }
+
+        .topbar {
+          padding: 18px 26px 16px;
+          gap: 16px;
+        }
+
+        .brand-mark {
+          width: 42px;
+          height: 42px;
+          font-size: 1.3rem;
+        }
+
+        .brand-text {
+          font-size: 1.35rem;
+        }
+
+        .month-pill select {
+          font-size: 0.82rem;
+          padding: 9px 30px 9px 14px;
+        }
+
+        .btn-icon {
+          width: 42px;
+          height: 42px;
+        }
+
+        .screens {
+          padding: 24px 30px 110px;
+        }
+
+        .screen {
+          max-width: 1160px;
+          margin: 0 auto;
+        }
+
+        #screen-home .hero {
+          margin-top: 0;
+          padding: 28px 30px 26px;
+          border-radius: 26px;
+        }
+
+        .hero-label {
+          font-size: 0.75rem;
+        }
+
+        .hero-val {
+          font-size: 2.5rem;
+        }
+
+        .hero-sub {
+          gap: 34px;
+        }
+
+        .section-title {
+          font-size: 0.72rem;
+          margin-top: 28px;
+        }
+
+        /* Budget cards become a desktop grid instead of one narrow phone column. */
+        #budgetCards {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        #budgetCards .budget-card {
+          margin-bottom: 0;
+          min-height: 150px;
+        }
+
+        #screen-home .donut-block {
+          display: grid;
+          grid-template-columns: 220px minmax(0, 1fr);
+          align-items: center;
+          gap: 28px;
+          padding: 24px;
+        }
+
+        #screen-home .legend {
+          justify-content: flex-start;
+        }
+
+        #screen-report .bar-card,
+        #screen-report > .card,
+        #screen-history > .card {
+          padding: 22px;
+        }
+
+        #screen-report .bar-card {
+          overflow-x: auto;
+        }
+
+        .cel-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .cel-box {
+          min-height: 128px;
+        }
+
+        .bottom-dock {
+          padding: 0 30px 20px;
+        }
+
+        .bottom-nav {
+          max-width: 760px;
+          padding: 12px 22px;
+          border-radius: 22px;
+        }
+
+        .nav-half {
+          gap: 12px;
+        }
+
+        .nav-btn {
+          min-width: 86px;
+          padding: 8px 16px;
+        }
+
+        .nav-btn .ic {
+          font-size: 1.25rem;
+        }
+
+        .nav-btn .lb {
+          font-size: 0.62rem;
+        }
+
+        .fab {
+          width: 64px;
+          height: 64px;
+          top: -30px;
+          font-size: 1.8rem;
+        }
+
+        .modal-sheet {
+          max-width: 620px;
+          border-radius: 26px;
+          margin-bottom: 20px;
+          max-height: 90vh;
+        }
+      }
+
+      /* ---------- Small laptop / tablet ---------- */
+      @media (min-width: 768px) and (max-width: 980px) {
+        body {
+          padding: 12px;
+        }
+
+        .app-shell {
+          min-height: calc(100vh - 24px);
+          height: calc(100vh - 24px);
+          border-radius: 22px;
+        }
+
+        .screens {
+          padding: 20px 20px 105px;
+        }
+
+        #budgetCards {
+          grid-template-columns: 1fr;
+        }
+
+        #screen-home .donut-block {
+          grid-template-columns: 1fr;
+        }
+
+        .bottom-nav {
+          max-width: 620px;
+        }
+      }
+
+      /* ---------- Phone layout ---------- */
+      @media (max-width: 767px) {
+        html,
+        body {
+          width: 100%;
+          min-width: 0;
+          background: var(--mint-900);
+        }
+
+        body {
+          padding: 0;
+          align-items: stretch;
+        }
+
+        .app-shell {
+          width: 100%;
+          max-width: 432px;
+          min-height: 100vh;
+          height: 100vh;
+          border-radius: 0;
+          box-shadow: none;
+        }
+
+        .screens {
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+
+        .bottom-dock {
+          padding-left: 10px;
+          padding-right: 10px;
+          padding-bottom: 10px;
+        }
+
+        .bottom-nav {
+          max-width: 100%;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation-duration: 0.001s !important;
+          transition-duration: 0.001s !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="loading-ov" id="loadingOv">
+        <div class="loading-pig">💰</div>
+        <div class="loading-txt">Menyiapkan dompetmu…</div>
+      </div>
+
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark">💰</div>
+          <div>
+            <div class="brand-text">DOMVRYN</div>
+          </div>
+        </div>
+        <div class="month-pill" id="monthPickerWrap">
+          <select id="yearPicker" onchange="onYearChange()"></select>
+          <select id="monthPicker" onchange="onMonthChange()"></select>
+        </div>
+        <div class="topbar-auth" id="topbarAuthArea" style="display: none">
+          <button
+            class="btn-auth btn-auth-masuk"
+            onclick="openAuthOverlay('login')"
+          >
+            Masuk
+          </button>
+          <button
+            class="btn-auth btn-auth-daftar"
+            onclick="openAuthOverlay('daftar')"
+          >
+            Daftar
+          </button>
+        </div>
+        <button
+          class="btn-icon"
+          onclick="openMoreModal()"
+          aria-label="Pengaturan"
+        >
+          ⚙️
+        </button>
+      </div>
+
+      <!-- Screens -->
+      <div class="screens">
+        <!-- HOME -->
+        <section class="screen active" id="screen-home">
+          <div class="hero">
+            <div class="hero-label">Saldo Aktual Bulan Ini</div>
+            <div class="hero-val num" id="heroSaldo">Rp 0</div>
+            <div class="hero-sub">
+              <div>Pemasukan<b class="num" id="heroIn">Rp 0</b></div>
+              <div>Pengeluaran<b class="num" id="heroOut">Rp 0</b></div>
+            </div>
+          </div>
+
+          <div class="section-title">Alokasi Anggaran</div>
+          <div id="budgetCards"></div>
+
+          <div class="section-title">Komposisi Alokasi</div>
+          <div class="donut-block">
+            <canvas id="donutBudget" width="190" height="190"></canvas>
+            <div class="legend" id="legendBudget"></div>
+          </div>
+        </section>
+
+        <!-- REPORT -->
+        <section class="screen" id="screen-report">
+          <div class="section-title">Pemasukan vs Pengeluaran</div>
+          <div class="card bar-card">
+            <div style="position: relative">
+              <canvas
+                id="barCanvas"
+                height="190"
+                style="width: 100%; display: block"
+              ></canvas>
+              <div
+                id="barTooltip"
+                style="
+                  position: absolute;
+                  display: none;
+                  background: rgba(21, 48, 44, 0.92);
+                  color: #fff;
+                  font-family: &quot;DM Mono&quot;, monospace;
+                  font-size: 0.66rem;
+                  padding: 6px 9px;
+                  border-radius: 8px;
+                  pointer-events: none;
+                  white-space: nowrap;
+                "
+              ></div>
+            </div>
+            <div class="ratio-wrap" id="ratioWrap"></div>
+          </div>
+
+          <div class="section-title">Pengeluaran per Kategori</div>
+          <div class="card">
+            <div
+              style="
+                display: flex;
+                justify-content: center;
+                margin-bottom: 14px;
+              "
+            >
+              <canvas id="spendDonut" width="160" height="160"></canvas>
+            </div>
+            <div id="spendList"></div>
+            <div class="empty" id="spendEmpty" style="display: none">
+              <span class="empty-emoji">🌸</span>Belum ada pengeluaran bulan
+              ini.
+            </div>
+          </div>
+        </section>
+
+        <!-- PIGGY -->
+        <section class="screen" id="screen-piggy">
+          <div class="section-title">Akumulasi Seluruh Bulan</div>
+          <p
+            style="font-size: 0.7rem; color: var(--ink-3); margin: -4px 0 14px"
+          >
+            Saldo terkini yang beneran masih ada, dari seluruh bulan yang sudah
+            tercatat. Ini bukan bagian dari alokasi anggaran bulan berjalan —
+            kalau mau dipakai, pakai tombol di bawah ini.
+          </p>
+          <div class="cel-grid" id="celenganGrid"></div>
+
+          <button
+            class="btn-submit"
+            id="btnPakaiCelengan"
+            style="margin-bottom: 14px"
+            onclick="openCelenganModal()"
+          >
+            🐷 Pakai Saldo Celengan
+          </button>
+
+          <button
+            class="toggle-btn"
+            id="celToggleBtn"
+            onclick="toggleCelTable()"
+          >
+            <span id="celToggleLabel">Lihat detail per bulan</span>
+            <span class="toggle-caret" id="celToggleCaret">▼</span>
+          </button>
+          <div class="table-collapsible" id="celTableWrap">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bulan</th>
+                    <th>🏦 Tabungan</th>
+                    <th>🛡️ Dana Darurat</th>
+                    <th>🎉 Healing & Hiburan</th>
+                    <th>🪙 Tabung Emas</th>
+                  </tr>
+                </thead>
+                <tbody id="celenganTbody"></tbody>
+              </table>
+              <div class="empty" id="celenganEmpty" style="display: none">
+                Belum ada data bulan yang tercatat 🌸
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- HISTORY -->
+        <section class="screen" id="screen-history">
+          <div class="section-title">Riwayat Transaksi</div>
+          <div class="card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tanggal</th>
+                    <th>Keterangan</th>
+                    <th>Tipe</th>
+                    <th>Metode / Perpindahan</th>
+                    <th>Jumlah</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="transTbody"></tbody>
+              </table>
+              <div class="empty" id="emptyHistory">
+                <span class="empty-emoji">💸</span>Belum ada transaksi bulan
+                ini.
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Bottom dock -->
+      <div class="bottom-dock">
+        <div class="bottom-nav">
+          <div class="nav-half">
+            <button
+              class="nav-btn active"
+              data-target="home"
+              onclick="switchScreen('home')"
+            >
+              <span class="ic">🏠</span><span class="lb">Beranda</span>
+            </button>
+            <button
+              class="nav-btn"
+              data-target="report"
+              onclick="switchScreen('report')"
+            >
+              <span class="ic">📊</span><span class="lb">Laporan</span>
+            </button>
+          </div>
+          <button
+            class="fab"
+            id="fabAdd"
+            onclick="openAddModal()"
+            aria-label="Tambah transaksi"
+          >
+            +
+          </button>
+          <div class="nav-half">
+            <button
+              class="nav-btn"
+              data-target="piggy"
+              onclick="switchScreen('piggy')"
+            >
+              <span class="ic">💰</span><span class="lb">Celengan</span>
+            </button>
+            <button
+              class="nav-btn"
+              data-target="history"
+              onclick="switchScreen('history')"
+            >
+              <span class="ic">📜</span><span class="lb">Riwayat</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add transaction modal -->
+      <div class="modal-overlay" id="modalAdd">
+        <div class="modal-sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-head">
+            <h3>Tambah Transaksi</h3>
+            <button class="sheet-close" onclick="closeAddModal()">✕</button>
+          </div>
+
+          <div class="field">
+            <label>Tipe</label>
+            <div class="type-toggle">
+              <div
+                class="type-opt sel-in"
+                id="optIn"
+                onclick="setTipe('pemasukan')"
+              >
+                💜 Pemasukan
+              </div>
+              <div
+                class="type-opt"
+                id="optOut"
+                onclick="setTipe('pengeluaran')"
+              >
+                🌸 Pengeluaran
+              </div>
+              <div
+                class="type-opt"
+                id="optMove"
+                onclick="setTipe('transfer_saldo')"
+              >
+                🔄 Pindah Saldo
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="hint-sbl"
+            id="hintTransfer"
+            style="
+              display: none;
+              background: var(--gold-soft);
+              border-color: #ffe1ad;
+              color: #a66b13;
+            "
+          >
+            🔄 <b>Pindah Saldo</b> dapat memindahkan uang antar lokasi Bank/Cash
+            <b>dalam budget yang sama maupun antar budget</b>. Perpindahan ini
+            <b>bukan pengeluaran</b>, jadi tidak masuk ke laporan pengeluaran.
+          </div>
+
+          <div class="field" id="fieldKat">
+            <label id="fKatLabel">Kategori</label>
+            <select
+              id="fKat"
+              onchange="onTransferBudgetChange()"
+              disabled
+              style="opacity: 0.45; cursor: not-allowed"
+            ></select>
+          </div>
+
+          <div class="field" id="fieldAlokasiPemasukan" style="display: none">
+            <label>Alokasi Pemasukan</label>
+            <select
+              id="fAlokasiPemasukan"
+              onchange="syncIncomeAllocationUI()"
+            ></select>
+            <div
+              style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
+            >
+              Otomatis memakai pembagian bujet. Jika memilih salah satu bagian,
+              seluruh pemasukan ini dialokasikan manual ke bagian tersebut.
+            </div>
+          </div>
+
+          <div class="field" id="fieldTujuanBudget" style="display: none">
+            <label>Budget Tujuan</label>
+            <select
+              id="fTujuanBudget"
+              onchange="onTransferBudgetChange()"
+            ></select>
+          </div>
+
+          <div class="field" id="fieldWalletTransfer" style="display: none">
+            <label>Lokasi Saldo</label>
+            <select id="fWalletTransfer">
+              <option value="bank_bank">🏦 Bank → 🏦 Bank</option>
+              <option value="bank_cash">🏦 Bank → 💵 Cash</option>
+              <option value="cash_bank">💵 Cash → 🏦 Bank</option>
+              <option value="cash_cash">💵 Cash → 💵 Cash</option>
+            </select>
+            <div
+              style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
+            >
+              Untuk pindah antar-budget, pilih sumber dan tujuan saldo.
+              Perpindahan ini
+              <b>bukan pengeluaran</b> dan tidak mengurangi total uang.
+            </div>
+          </div>
+
+          <div class="field" id="fieldMetode" style="display: none">
+            <label>Metode Pembayaran</label>
+            <select id="fMetode"></select>
+            <div
+              style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
+            >
+              Cash mengurangi saldo Cash. Semua metode non-tunai mengurangi
+              saldo Bank pada budget yang dipilih.
+            </div>
+          </div>
+
+          <div class="field" id="fieldArah" style="display: none">
+            <label>Arah Perpindahan</label>
+            <select id="fArah">
+              <option value="bank_cash">🏦 Bank → 💵 Cash</option>
+              <option value="cash_bank">💵 Cash → 🏦 Bank</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Tanggal</label>
+            <input type="date" id="fTanggal" />
+          </div>
+
+          <div class="field">
+            <label>Keterangan</label>
+            <input
+              type="text"
+              id="fKet"
+              placeholder="Gaji, makan siang, pindah saldo, dst..."
+            />
+          </div>
+
+          <div class="field">
+            <label>Jumlah (Rp)</label>
+            <input
+              type="text"
+              inputmode="numeric"
+              id="fJumlah"
+              placeholder="0"
+              oninput="formatJumlahInput(this)"
+            />
+          </div>
+
+          <button
+            class="btn-submit"
+            id="submitLabel"
+            onclick="simpanTransaksi()"
+          >
+            Simpan Transaksi
+          </button>
+        </div>
+      </div>
+
+      <!-- Pakai Saldo Celengan modal -->
+      <div class="modal-overlay" id="modalCelengan">
+        <div class="modal-sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-head">
+            <h3>🐷 Pakai Saldo Celengan</h3>
+            <button class="sheet-close" onclick="closeCelenganModal()">
+              ✕
+            </button>
+          </div>
+
+          <div
+            class="hint-sbl"
+            style="
+              background: var(--gold-soft);
+              border-color: #ffe1ad;
+              color: #a66b13;
+            "
+          >
+            🐷 Uang ini diambil dari <b>saldo Celengan</b> (akumulasi semua
+            bulan yang tercatat), <b>bukan</b> dari alokasi anggaran bulan
+            berjalan. Transaksi ini tetap tercatat sebagai <b>pengeluaran</b> di
+            riwayat & laporan bulan ini.
+          </div>
+
+          <div class="field">
+            <label>Kategori Celengan</label>
+            <select id="fCelKat" onchange="updateCelenganSaldoInfo()"></select>
+          </div>
+
+          <div class="field">
+            <label>Metode Pembayaran</label>
+            <select
+              id="fCelMetode"
+              onchange="updateCelenganSaldoInfo()"
+            ></select>
+            <div
+              style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
+            >
+              Cash mengurangi saldo Celengan Cash. Semua metode non-tunai
+              mengurangi saldo Celengan Bank.
+            </div>
+          </div>
+
+          <div
+            id="celSaldoInfo"
+            style="
+              font-size: 0.68rem;
+              color: var(--mint-700);
+              font-weight: 700;
+              margin: -6px 0 4px;
+            "
+          ></div>
+
+          <div class="field">
+            <label>Tanggal</label>
+            <input type="date" id="fCelTanggal" />
+          </div>
+
+          <div class="field">
+            <label>Keterangan</label>
+            <input
+              type="text"
+              id="fCelKet"
+              placeholder="Tarik tabungan buat servis motor, dst..."
+            />
+          </div>
+
+          <div class="field">
+            <label>Jumlah (Rp)</label>
+            <input
+              type="text"
+              inputmode="numeric"
+              id="fCelJumlah"
+              placeholder="0"
+              oninput="formatJumlahInput(this)"
+            />
+          </div>
+
+          <button class="btn-submit" onclick="simpanCelenganTransaksi()">
+            Pakai Saldo Celengan
+          </button>
+        </div>
+      </div>
+
+      <!-- More modal -->
+      <div class="modal-overlay" id="modalMore">
+        <div class="modal-sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-head">
+            <h3>Lainnya</h3>
+            <button class="sheet-close" onclick="closeMoreModal()">✕</button>
+          </div>
+
+          <div class="more-item" id="moreAccountLoggedIn" style="display: none">
+            <div class="more-icon">👤</div>
+            <div class="more-text">
+              <div class="more-title" id="moreAccountEmail">-</div>
+              <div class="more-desc">
+                Akun kamu saat ini · data tersinkron otomatis
+              </div>
+            </div>
+            <button class="more-btn danger" onclick="doLogout()">Keluar</button>
+          </div>
+          <div class="more-item" id="moreAccountLoggedOut">
+            <div class="more-icon">🔐</div>
+            <div class="more-text">
+              <div class="more-title">Belum masuk akun</div>
+              <div class="more-desc">
+                Masuk supaya transaksi tersimpan aman di akun kamu
+              </div>
+            </div>
+            <button class="more-btn" onclick="openAuthOverlay('login')">
+              Masuk
+            </button>
+          </div>
+
+          <div class="more-item">
+            <div class="more-icon">🗑️</div>
+            <div class="more-text">
+              <div class="more-title">Hapus Semua Data</div>
+              <div class="more-desc">
+                Mengosongkan seluruh riwayat transaksi
+              </div>
+            </div>
+            <button class="more-btn danger" onclick="resetAllData()">
+              Hapus
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auth overlay: Daftar / Login / Lupa Password / Reset Password -->
+      <div class="auth-overlay" id="authOverlay">
+        <div class="auth-card">
+          <button class="auth-close" onclick="closeAuthOverlay()">✕</button>
+
+          <!-- DAFTAR -->
+          <div id="authViewDaftar">
+            <div class="auth-title">Daftar Akun DOMVRYN</div>
+            <div class="auth-switch">
+              Sudah memiliki akun?
+              <span class="auth-link" onclick="switchAuthView('login')"
+                >Login</span
+              >
+            </div>
+            <button class="btn-google" onclick="googleSignIn()">
+              <svg width="18" height="18" viewBox="0 0 48 48">
+                <path
+                  fill="#FFC107"
+                  d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.3-.4-3.5z"
+                />
+                <path
+                  fill="#FF3D00"
+                  d="M6.3 14.7l6.6 4.8C14.6 15.3 18.9 12 24 12c3.1 0 5.9 1.2 8 3.1l6-6C34.6 5.1 29.6 3 24 3c-7.4 0-13.7 4.2-16.9 10.3z"
+                />
+                <path
+                  fill="#4CAF50"
+                  d="M24 45c5.5 0 10.4-2.1 14.1-5.6l-6.5-5.5C29.5 35.6 26.9 36.5 24 36.5c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.2 40.5 16 45 24 45z"
+                />
+                <path
+                  fill="#1976D2"
+                  d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.9l6.5 5.5C40.7 36.5 44 30.9 44 24c0-1.2-.1-2.3-.4-3.5z"
+                />
+              </svg>
+              Daftar dengan Google
+            </button>
+            <div class="auth-or">atau</div>
+            <div class="field">
+              <label>Email</label>
+              <input
+                type="email"
+                id="regEmail"
+                placeholder="Masukkan email kamu"
+                oninput="checkRegForm()"
+              />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input
+                type="password"
+                id="regPassword"
+                placeholder="Masukkan password kamu (min. 6 karakter)"
+                oninput="checkRegForm()"
+              />
+            </div>
+            <div class="field">
+              <label>Konfirmasi Password</label>
+              <input
+                type="password"
+                id="regConfirm"
+                placeholder="Masukkan ulang password kamu"
+                oninput="checkRegForm()"
+              />
+            </div>
+            <button
+              class="btn-auth-submit daftar"
+              id="btnDaftarSubmit"
+              disabled
+              onclick="doRegister()"
+            >
+              Daftar
+            </button>
+          </div>
+
+          <!-- LOGIN -->
+          <div id="authViewLogin" style="display: none">
+            <div class="auth-title">Masuk ke DOMVRYN</div>
+            <div class="auth-switch">
+              Belum punya akun?
+              <span class="auth-link" onclick="switchAuthView('daftar')"
+                >Daftar Sekarang!</span
+              >
+            </div>
+            <button class="btn-google" onclick="googleSignIn()">
+              <svg width="18" height="18" viewBox="0 0 48 48">
+                <path
+                  fill="#FFC107"
+                  d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.3-.4-3.5z"
+                />
+                <path
+                  fill="#FF3D00"
+                  d="M6.3 14.7l6.6 4.8C14.6 15.3 18.9 12 24 12c3.1 0 5.9 1.2 8 3.1l6-6C34.6 5.1 29.6 3 24 3c-7.4 0-13.7 4.2-16.9 10.3z"
+                />
+                <path
+                  fill="#4CAF50"
+                  d="M24 45c5.5 0 10.4-2.1 14.1-5.6l-6.5-5.5C29.5 35.6 26.9 36.5 24 36.5c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.2 40.5 16 45 24 45z"
+                />
+                <path
+                  fill="#1976D2"
+                  d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.9l6.5 5.5C40.7 36.5 44 30.9 44 24c0-1.2-.1-2.3-.4-3.5z"
+                />
+              </svg>
+              Masuk dengan Google
+            </button>
+            <div class="auth-or">atau</div>
+            <div class="field">
+              <label>Email</label>
+              <input
+                type="email"
+                id="loginEmail"
+                placeholder="Masukkan email kamu"
+                oninput="checkLoginForm()"
+              />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input
+                type="password"
+                id="loginPassword"
+                placeholder="Masukkan password kamu"
+                oninput="checkLoginForm()"
+              />
+            </div>
+            <button
+              class="btn-auth-submit masuk"
+              id="btnLoginSubmit"
+              disabled
+              onclick="doLogin()"
+            >
+              Masuk
+            </button>
+            <div class="auth-forgot">
+              <span class="auth-link" onclick="switchAuthView('lupa')"
+                >Lupa Password?</span
+              >
+            </div>
+          </div>
+
+          <!-- LUPA PASSWORD -->
+          <div id="authViewLupa" style="display: none">
+            <div class="auth-title">Reset Password</div>
+            <div class="auth-switch">
+              Masukkan email yang pernah kamu daftarkan. Kami akan kirim link
+              reset password ke email itu.
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input
+                type="email"
+                id="lupaEmail"
+                placeholder="Masukkan email kamu"
+                oninput="checkLupaForm()"
+              />
+            </div>
+            <button
+              class="btn-auth-submit masuk"
+              id="btnLupaSubmit"
+              disabled
+              onclick="doForgotPassword()"
+            >
+              Kirim Link Reset
+            </button>
+            <div class="auth-forgot">
+              <span class="auth-link" onclick="switchAuthView('login')"
+                >← Kembali ke Login</span
+              >
+            </div>
+          </div>
+
+          <!-- RESET PASSWORD BARU (dibuka otomatis dari link di email) -->
+          <div id="authViewResetBaru" style="display: none">
+            <div class="auth-title">Buat Password Baru</div>
+            <div class="auth-switch" id="resetEmailInfo">
+              Memeriksa link reset…
+            </div>
+            <div class="field">
+              <label>Password Baru</label>
+              <input
+                type="password"
+                id="resetNewPassword"
+                placeholder="Masukkan password baru (min. 6 karakter)"
+                oninput="checkResetForm()"
+              />
+            </div>
+            <div class="field">
+              <label>Konfirmasi Password Baru</label>
+              <input
+                type="password"
+                id="resetNewConfirm"
+                placeholder="Masukkan ulang password baru"
+                oninput="checkResetForm()"
+              />
+            </div>
+            <button
+              class="btn-auth-submit masuk"
+              id="btnResetSubmit"
+              disabled
+              onclick="doConfirmReset()"
+            >
+              Reset Password
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+      /* ============================================================
+         🔥 KONFIGURASI FIREBASE — WAJIB DIISI SEBELUM DI-PUBLISH!
+         Cara ambil: Firebase Console > Project Settings (⚙️) >
+         General > scroll ke "Your apps" > pilih Web app (</>) >
+         bagian "SDK setup and configuration" > pilih "Config".
+         Tinggal copy-paste object-nya ke sini.
+         ============================================================ */
+      const firebaseConfig = {
+        apiKey: "AIzaSyAbBiKD0epiSvb-WhPx3FPK2BUXQEe2zKA",
+        authDomain: "domvryn-c1c4d.firebaseapp.com",
+        projectId: "domvryn-c1c4d",
+        storageBucket: "domvryn-c1c4d.firebasestorage.app",
+        messagingSenderId: "135381333297",
+        appId: "1:135381333297:web:857a180b1a202f6c90ec10",
+      };
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+      const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+      let currentUser = null;
+      let unsubData = null;
+
+      let data = [];
+      let currentMonth = null;
+      let currentTipe = "pemasukan";
+
+      const RATIO = { k: 0.5, w: 0.15, t: 0.15, c: 0.1, h: 0.05, e: 0.05 };
+
+      const KATEGORI = [
+        {
+          key: "Kebutuhan",
+          icon: "🧾",
+          color: "#6d5dfc",
+          desc: "Saldo sisa kebutuhan dari bulan sebelumnya atau pengeluaran kebutuhan umum.",
+        },
+        {
+          key: "Sarapan",
+          icon: "☕",
+          color: "#f4b860",
+          desc: "Kopi, teh, roti, bubur, nasi pagi, atau menu sarapan lainnya.",
+        },
+        {
+          key: "Makan Siang",
+          icon: "🍛",
+          color: "#ff9f6e",
+          desc: "Nasi, lauk, kantin, warung, restoran, atau pesan online.",
+        },
+        {
+          key: "Makan Malam",
+          icon: "🍽️",
+          color: "#ff8fab",
+          desc: "Makan malam di rumah, warung, restoran, atau pesan makanan.",
+        },
+        {
+          key: "Sayur",
+          icon: "🥬",
+          color: "#88c999",
+          desc: "Sayuran segar, lalapan, bahan sop, tumisan, dan kebutuhan sayur harian.",
+        },
+        {
+          key: "Kebutuhan Dapur/Masak",
+          icon: "🧂",
+          color: "#c79a5b",
+          desc: "Beras, minyak, telur, bumbu dapur, gas, dan bahan masakan.",
+        },
+        {
+          key: "Buah-Buahan",
+          icon: "🍎",
+          color: "#ff7a8a",
+          desc: "Buah segar, jus buah, salad buah, dan kebutuhan buah harian.",
+        },
+        {
+          key: "Transportasi",
+          icon: "🛵",
+          color: "#67b7dc",
+          desc: "Bensin, ojek online, angkot, parkir, tol, dan transportasi umum.",
+        },
+        {
+          key: "Rumah",
+          icon: "🏠",
+          color: "#a78bfa",
+          desc: "Kos, kontrakan, listrik, internet, gas, kebersihan rumah, dan kebutuhan hunian.",
+        },
+        {
+          key: "Kesehatan",
+          icon: "💊",
+          color: "#69c7b1",
+          desc: "Obat-obatan, dokter, vitamin, apotek, dan pemeriksaan kesehatan.",
+        },
+        {
+          key: "Pendidikan",
+          icon: "📚",
+          color: "#d9a441",
+          desc: "Kursus, buku, biaya sekolah, kuliah, pelatihan, dan perlengkapan belajar.",
+        },
+        {
+          key: "Jajan/Keinginan",
+          icon: "💅",
+          color: "#ff8fab",
+          desc: "Jajan, cemilan, minuman kekinian, self reward, dan pengeluaran personal yang sifatnya bukan kebutuhan pokok.",
+        },
+        {
+          key: "Skincare",
+          icon: "🫧",
+          color: "#ffb3c7",
+          desc: "Serum, moisturizer, sunscreen, toner, facial wash, dan perawatan wajah.",
+        },
+        {
+          key: "Makeup",
+          icon: "💄",
+          color: "#d66ba0",
+          desc: "Foundation, lipstik, mascara, bedak, blush on, brush, dan alat makeup.",
+        },
+        {
+          key: "Alat Mandi",
+          icon: "🧴",
+          color: "#79c7d9",
+          desc: "Sabun, shampo, sikat gigi, pasta gigi, lulur, dan perlengkapan mandi.",
+        },
+        {
+          key: "Nyuci",
+          icon: "🧺",
+          color: "#7fc8a9",
+          desc: "Laundry kiloan, detergen, pewangi pakaian, pelembut, dan kebutuhan mencuci.",
+        },
+        {
+          key: "Pewangi",
+          icon: "🌸",
+          color: "#f6aac2",
+          desc: "Pewangi pakaian, pengharum ruangan, parfum, diffuser, dan aroma terapi.",
+        },
+        {
+          key: "Outfit",
+          icon: "👗",
+          color: "#b998ff",
+          desc: "Baju, sepatu, celana, tas, hijab, aksesoris, dan kebutuhan fashion.",
+        },
+        {
+          key: "Air",
+          icon: "💧",
+          color: "#38bdf8",
+          desc: "Galon air minum, PDAM, air mineral, dan kebutuhan air harian.",
+        },
+        {
+          key: "Tabungan",
+          icon: "🏦",
+          color: "#8b7cf6",
+          desc: "Pengeluaran dari alokasi tabungan. Jika dipakai, jumlahnya akan mengurangi kelompok Tabungan.",
+        },
+        {
+          key: "Healing & Hiburan",
+          icon: "🎟️",
+          color: "#8b7cf6",
+          desc: "Nonton film, wisata, karaoke, nongkrong, hangout, dan hiburan.",
+        },
+        {
+          key: "Dana Darurat",
+          icon: "🛡️",
+          color: "#f4b860",
+          desc: "Simpanan untuk kebutuhan mendadak, darurat, atau pengeluaran tak terduga.",
+        },
+        {
+          key: "Tabung Emas",
+          icon: "🪙",
+          color: "#d9a441",
+          desc: "Alokasi khusus untuk membeli atau menabung emas secara bertahap.",
+        },
+        {
+          key: "Lainnya",
+          icon: "📦",
+          color: "#b09a90",
+          desc: "Pengeluaran lain-lain yang tidak termasuk dalam kategori utama.",
+        },
+      ];
+
+      const GROUP_KEINGINAN = ["Jajan/Keinginan", "Keinginan", "Jajan"];
+      const GROUP_TABUNGAN = ["Tabungan"];
+      const GROUP_CADANGAN = ["Dana Darurat", "Dana Cadangan", "DanaCadangan"];
+      const GROUP_HEALING = [
+        "Healing & Hiburan",
+        "Healing/Dana Bebas",
+        "Healing/DanaBebas",
+        "Healing",
+      ];
+      const GROUP_EMAS = ["Tabung Emas", "Emas", "Tabungan Emas"];
+
+      const BUDGET_GROUPS = {
+        k: { label: "Kebutuhan", icon: "🧾" },
+        w: { label: "Jajan/Keinginan", icon: "💅" },
+        t: { label: "Tabungan", icon: "🏦" },
+        c: { label: "Dana Darurat", icon: "🛡️" },
+        h: { label: "Healing & Hiburan", icon: "🎟️" },
+        e: { label: "Tabung Emas", icon: "🪙" },
+      };
+
+      const METODE_PEMBAYARAN = [
+        { key: "cash", label: "💵 Cash", bucket: "cash" },
+        { key: "qris", label: "📱 QRIS", bucket: "bank" },
+        {
+          key: "transfer_bank",
+          label: "🏦 Transfer Bank / Mobile Banking",
+          bucket: "bank",
+        },
+        { key: "ewallet", label: "📲 E-Wallet", bucket: "bank" },
+        { key: "virtual_account", label: "🧾 Virtual Account", bucket: "bank" },
+      ];
+
+      function normalizeKategori(kat) {
+        if (GROUP_KEINGINAN.includes(kat)) return "Jajan/Keinginan";
+        if (GROUP_TABUNGAN.includes(kat)) return "Tabungan";
+        if (GROUP_CADANGAN.includes(kat)) return "Dana Darurat";
+        if (GROUP_HEALING.includes(kat)) return "Healing & Hiburan";
+        if (GROUP_EMAS.includes(kat)) return "Tabung Emas";
+        return kat || "Lainnya";
+      }
+
+      function groupOfKategori(kat) {
+        const cleanKat = normalizeKategori(kat);
+        if (cleanKat === "Jajan/Keinginan") return "w";
+        if (cleanKat === "Tabungan") return "t";
+        if (cleanKat === "Dana Darurat") return "c";
+        if (cleanKat === "Healing & Hiburan") return "h";
+        if (cleanKat === "Tabung Emas") return "e";
+        return "k";
+      }
+
+      function paymentBucket(row) {
+        if (row.metode === "cash" || row.sumberDana === "cash") return "cash";
+        return "bank";
+      }
+
+      function metodeLabel(key) {
+        const found = METODE_PEMBAYARAN.find((m) => m.key === key);
+        return found ? found.label : "🏦 Bank / Non-Tunai";
+      }
+
+      function sumOutByGroup(rows, group) {
+        return rows
+          .filter(
+            (r) =>
+              r.tipe === "pengeluaran" &&
+              groupOfKategori(r.kategori || "Lainnya") === group,
+          )
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+      }
+
+      function sumOutByGroupAndBucket(rows, group, bucket) {
+        return rows
+          .filter(
+            (r) =>
+              r.tipe === "pengeluaran" &&
+              groupOfKategori(r.kategori || "Lainnya") === group &&
+              paymentBucket(r) === bucket,
+          )
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+      }
+
+      function transferEndpoints(row) {
+        // Format baru: transfer antar-budget dapat menyimpan budget asal/tujuan
+        // serta bucket asal/tujuan secara eksplisit.
+        if (row.tipe !== "transfer_saldo") return null;
+
+        if (row.transferFromGroup || row.transferToGroup) {
+          return {
+            fromGroup:
+              row.transferFromGroup ||
+              row.budgetGroup ||
+              groupOfKategori(row.kategori || "Kebutuhan"),
+            toGroup:
+              row.transferToGroup ||
+              row.budgetGroup ||
+              groupOfKategori(row.kategori || "Kebutuhan"),
+            fromBucket: row.transferFromBucket || "bank",
+            toBucket: row.transferToBucket || "bank",
+          };
+        }
+
+        // Kompatibilitas transfer lama: Bank ↔ Cash dalam budget yang sama.
+        const group =
+          row.budgetGroup || groupOfKategori(row.kategori || "Kebutuhan");
+        if (row.arah === "cash_bank") {
+          return {
+            fromGroup: group,
+            toGroup: group,
+            fromBucket: "cash",
+            toBucket: "bank",
+          };
+        }
+        return {
+          fromGroup: group,
+          toGroup: group,
+          fromBucket: "bank",
+          toBucket: "cash",
+        };
+      }
+
+      function sumTransferOutByGroupAndBucket(rows, group, bucket) {
+        return rows
+          .filter((r) => {
+            const ep = transferEndpoints(r);
+            return (
+              ep &&
+              ep.fromGroup !== ep.toGroup &&
+              ep.fromGroup === group &&
+              ep.fromBucket === bucket
+            );
+          })
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+      }
+
+      function sumTransferInByGroupAndBucket(rows, group, bucket) {
+        return rows
+          .filter((r) => {
+            const ep = transferEndpoints(r);
+            return (
+              ep &&
+              ep.fromGroup !== ep.toGroup &&
+              ep.toGroup === group &&
+              ep.toBucket === bucket
+            );
+          })
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+      }
+
+      function sumTransferByGroup(rows, group, arah) {
+        return rows
+          .filter((r) => {
+            if (r.tipe !== "transfer_saldo") return false;
+            const ep = transferEndpoints(r);
+            if (!ep) return false;
+            if (ep.fromGroup !== ep.toGroup || ep.fromGroup !== group)
+              return false;
+            return r.arah === arah;
+          })
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+      }
+
+      function freshBudgetAllocation(rows, group) {
+        const totalAutoIn = rows
+          .filter((r) => r.tipe === "pemasukan" && !r.alokasiManual)
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+
+        const manualIn = rows
+          .filter(
+            (r) =>
+              r.tipe === "pemasukan" &&
+              r.alokasiManual &&
+              (r.alokasiGroup || groupOfKategori(r.kategori || "")) === group,
+          )
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+
+        const totalSBL = rows
+          .filter((r) => r.tipe === "pemasukan_tetap")
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+
+        return (
+          totalAutoIn * (RATIO[group] || 0) +
+          manualIn +
+          (group === "k" ? totalSBL : 0)
+        );
+      }
+
+      function budgetAllocation(rows, group) {
+        const base =
+          freshBudgetAllocation(rows, group) + sumCarryByGroup(rows, group);
+
+        const transferIn = rows
+          .filter((r) => {
+            const ep = transferEndpoints(r);
+            return ep && ep.toGroup === group && ep.fromGroup !== ep.toGroup;
+          })
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+
+        const transferOut = rows
+          .filter((r) => {
+            const ep = transferEndpoints(r);
+            return ep && ep.fromGroup === group && ep.fromGroup !== ep.toGroup;
+          })
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+
+        return base + transferIn - transferOut;
+      }
+
+      function walletStatsForGroup(rows, group, allocation = null) {
+        const freshBudget = freshBudgetAllocation(rows, group);
+        const carryBank = sumCarryByGroup(rows, group, "bank");
+        const carryCash = sumCarryByGroup(rows, group, "cash");
+        const budget =
+          allocation == null ? budgetAllocation(rows, group) : allocation;
+        const bankToCash = sumTransferByGroup(rows, group, "bank_cash");
+        const cashToBank = sumTransferByGroup(rows, group, "cash_bank");
+        const outBank = sumOutByGroupAndBucket(rows, group, "bank");
+        const outCash = sumOutByGroupAndBucket(rows, group, "cash");
+
+        const transferOutBank = sumTransferOutByGroupAndBucket(
+          rows,
+          group,
+          "bank",
+        );
+        const transferOutCash = sumTransferOutByGroupAndBucket(
+          rows,
+          group,
+          "cash",
+        );
+        const transferInBank = sumTransferInByGroupAndBucket(
+          rows,
+          group,
+          "bank",
+        );
+        const transferInCash = sumTransferInByGroupAndBucket(
+          rows,
+          group,
+          "cash",
+        );
+
+        const bank =
+          freshBudget +
+          carryBank -
+          bankToCash +
+          cashToBank -
+          outBank -
+          transferOutBank +
+          transferInBank;
+        const cash =
+          carryCash +
+          bankToCash -
+          cashToBank -
+          outCash -
+          transferOutCash +
+          transferInCash;
+        return {
+          budget,
+          freshBudget,
+          carryBank,
+          carryCash,
+          bankToCash,
+          cashToBank,
+          outBank,
+          outCash,
+          bank,
+          cash,
+        };
+      }
+
+      let lastBudgetSlices = [];
+      let lastSpendSlices = [];
+
+      function safeDomId(value) {
+        return String(value || "")
+          .replace(/[^a-zA-Z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function getChartTooltip() {
+        let el = document.getElementById("chartTooltipGlobal");
+        if (!el) {
+          el = document.createElement("div");
+          el.id = "chartTooltipGlobal";
+          el.style.cssText = `position:fixed;display:none;z-index:90;pointer-events:none;background:rgba(39,34,56,.94);color:#fff;font-family:"Plus Jakarta Sans",sans-serif;font-size:.68rem;font-weight:700;padding:8px 10px;border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.22);max-width:220px;line-height:1.35;`;
+          document.body.appendChild(el);
+        }
+        return el;
+      }
+
+      function showChartTooltip(html, clientX, clientY) {
+        const el = getChartTooltip();
+        el.innerHTML = html;
+        el.style.display = "block";
+        const left = Math.min(
+          window.innerWidth - el.offsetWidth - 10,
+          clientX + 12,
+        );
+        const top = Math.max(10, clientY - el.offsetHeight - 12);
+        el.style.left = left + "px";
+        el.style.top = top + "px";
+      }
+
+      function hideChartTooltip() {
+        const el = document.getElementById("chartTooltipGlobal");
+        if (el) el.style.display = "none";
+      }
+
+      function pointerOnCanvas(evt, cv) {
+        const src = evt.touches && evt.touches[0] ? evt.touches[0] : evt;
+        const rect = cv.getBoundingClientRect();
+        return {
+          x: (src.clientX - rect.left) * (cv.width / rect.width),
+          y: (src.clientY - rect.top) * (cv.height / rect.height),
+          clientX: src.clientX,
+          clientY: src.clientY,
+        };
+      }
+
+      function findDonutHit(evt, cv, slices, cx, cy, outerR, innerR) {
+        const pt = pointerOnCanvas(evt, cv);
+        const dx = pt.x - cx;
+        const dy = pt.y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < innerR || dist > outerR + 10) return null;
+        let ang = Math.atan2(dy, dx);
+        if (ang < -Math.PI / 2) ang += Math.PI * 2;
+        return slices.find((s) => ang >= s.start && ang <= s.end) || null;
+      }
+
+      function transaksiByBudgetGroup(rows, group) {
+        return rows
+          .filter((r) => {
+            if (r.tipe === "pengeluaran") {
+              return groupOfKategori(r.kategori || "Lainnya") === group;
+            }
+            if (r.tipe === "transfer_saldo") {
+              const ep = transferEndpoints(r);
+              return ep && (ep.fromGroup === group || ep.toGroup === group);
+            }
+            return false;
+          })
+          .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+      }
+
+      function showBudgetSliceInfo(key) {
+        const s = lastBudgetSlices.find((x) => x.key === key);
+        if (s) showToast(`${s.icon} ${s.name}: ${fmt(s.v)} (${s.pct}%)`);
+      }
+
+      function showSpendSliceInfo(key) {
+        const s = lastSpendSlices.find((x) => x.key === key);
+        if (!s) return;
+        showToast(`${s.icon} ${s.key}: ${fmt(s.val)} (${s.pct}%)`);
+        const row = document.getElementById("sr-" + safeDomId(s.key));
+        if (row) row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function toggleBudgetDetail(group) {
+        document.querySelectorAll(".budget-card").forEach((card) => {
+          const open =
+            card.id === "bc-" + group && !card.classList.contains("open");
+          card.classList.toggle("open", open);
+        });
+        document.querySelectorAll(".budget-detail").forEach((detail) => {
+          const open =
+            detail.id === "bd-" + group &&
+            !detail.classList.contains("visible");
+          detail.classList.toggle("visible", open);
+        });
+      }
+
+      function walletSplitHtml(group, rows, budget) {
+        const ws = walletStatsForGroup(rows, group, budget);
+        return `<div class="wallet-split">
+          <div class="wallet-box bank">
+            <div class="wallet-label">🏦 Saldo Bank</div>
+            <div class="wallet-value ${ws.bank < 0 ? "minus" : ""}">${fmt(ws.bank)}</div>
+          </div>
+          <div class="wallet-box cash">
+            <div class="wallet-label">💵 Saldo Cash</div>
+            <div class="wallet-value ${ws.cash < 0 ? "minus" : ""}">${fmt(ws.cash)}</div>
+          </div>
+        </div>`;
+      }
+
+      function budgetDetailHtml(group, rows, used, budget) {
+        const txs = transaksiByBudgetGroup(rows, group);
+        const sisa = budget - used;
+        const pct = budget > 0 ? Math.round((used / budget) * 100) : 0;
+        const items = txs
+          .map((r) => {
+            const isMove = r.tipe === "transfer_saldo";
+            const info = isMove
+              ? (() => {
+                  const ep = transferEndpoints(r);
+                  const from = BUDGET_GROUPS[ep?.fromGroup]?.label || "Budget";
+                  const to = BUDGET_GROUPS[ep?.toGroup]?.label || from;
+                  const fromWallet =
+                    ep?.fromBucket === "cash" ? "💵 Cash" : "🏦 Bank";
+                  const toWallet =
+                    ep?.toBucket === "cash" ? "💵 Cash" : "🏦 Bank";
+                  return from === to
+                    ? `${fromWallet} → ${toWallet}`
+                    : `${fromWallet} ${from} → ${toWallet} ${to}`;
+                })()
+              : metodeLabel(r.metode);
+            let nominal = fmt(r.jml);
+            let nominalColor = "var(--coral)";
+
+            if (isMove) {
+              const ep = transferEndpoints(r);
+              const incoming =
+                ep && ep.toGroup === group && ep.fromGroup !== group;
+              const outgoing =
+                ep && ep.fromGroup === group && ep.toGroup !== group;
+
+              if (incoming) {
+                nominal = `+ ${fmt(r.jml)}`;
+                nominalColor = "var(--mint-700)";
+              } else if (outgoing) {
+                nominal = `− ${fmt(r.jml)}`;
+                nominalColor = "var(--coral)";
+              } else {
+                nominal = `↔ ${fmt(r.jml)}`;
+                nominalColor = "var(--mint-700)";
+              }
+            }
+
+            return `<div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)}<div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${info}</div></span><span class="spend-detail-jml" style="color:${nominalColor}">${nominal}</span></div>`;
+          })
+          .join("");
+        return `<div class="budget-detail" id="bd-${group}">
+          <div class="budget-detail-head"><span>Terpakai ${pct}%</span><span>${sisa >= 0 ? "Sisa " + fmt(sisa) : "Lebih " + fmt(Math.abs(sisa))}</span></div>
+          <div class="budget-detail-note">Pengeluaran mengurangi total budget. Pindah saldo antar-budget hanya memindahkan alokasi dan saldo, <b>bukan pengeluaran</b>. Bank ↔ Cash dalam budget yang sama hanya mengubah lokasi saldo.</div>
+          <div class="budget-detail-list">${items || `<div class="budget-detail-note">Belum ada transaksi untuk bagian ini.</div>`}</div>
+        </div>`;
+      }
+
+      /* ---------------- storage ---------------- */
+      function normalizeDataRows(rows) {
+        return (Array.isArray(rows) ? rows : []).map((row) => {
+          const d = { ...row };
+          if (!d.bulan && d.tanggal) d.bulan = bulanOf(d.tanggal);
+
+          if (
+            d.tipe === "pengeluaran" &&
+            /\btarik\s+tunai\b/i.test(String(d.ket || ""))
+          ) {
+            const group = groupOfKategori(d.kategori || "Kebutuhan");
+            d.tipe = "transfer_saldo";
+            d.budgetGroup = group;
+            d.kategori = BUDGET_GROUPS[group].label;
+            d.arah = "bank_cash";
+            delete d.metode;
+          }
+
+          if (d.tipe === "pengeluaran" && !d.metode) {
+            d.metode = d.sumberDana === "cash" ? "cash" : "transfer_bank";
+          }
+          if (d.tipe === "transfer_saldo") {
+            d.budgetGroup =
+              d.budgetGroup ||
+              d.transferFromGroup ||
+              groupOfKategori(d.kategori || "Kebutuhan");
+            d.transferFromGroup = d.transferFromGroup || d.budgetGroup;
+            d.transferToGroup =
+              d.transferToGroup ||
+              d.budgetGroup ||
+              groupOfKategori(d.kategori || "Kebutuhan");
+
+            if (!d.transferFromBucket || !d.transferToBucket) {
+              if (d.arah === "cash_bank") {
+                d.transferFromBucket = "cash";
+                d.transferToBucket = "bank";
+              } else if (d.arah === "cash_cash") {
+                d.transferFromBucket = "cash";
+                d.transferToBucket = "cash";
+              } else if (d.arah === "bank_bank") {
+                d.transferFromBucket = "bank";
+                d.transferToBucket = "bank";
+              } else {
+                d.transferFromBucket = "bank";
+                d.transferToBucket = "cash";
+              }
+            }
+
+            d.kategori =
+              BUDGET_GROUPS[d.transferToGroup]?.label ||
+              BUDGET_GROUPS[d.budgetGroup]?.label ||
+              d.kategori ||
+              "Kebutuhan";
+
+            d.arah = d.arah || `${d.transferFromBucket}_${d.transferToBucket}`;
+          }
+          if (d.tipe === "saldo_bulan_lalu") {
+            d.carryoverGroup =
+              d.carryoverGroup || groupOfKategori(d.kategori || "Kebutuhan");
+            d.kategori =
+              BUDGET_GROUPS[d.carryoverGroup]?.label ||
+              d.kategori ||
+              "Kebutuhan";
+            d.carryBucket = d.carryBucket || "bank";
+          }
+          return d;
+        });
+      }
+
+      async function saveData() {
+        if (!currentUser) return;
+        try {
+          await db
+            .collection("domvryn_users")
+            .doc(currentUser.uid)
+            .set(
+              {
+                transactions: data,
+                email: currentUser.email || null,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
+        } catch (e) {
+          showToast("⚠️ Gagal menyimpan ke server", true);
+          console.error("Gagal menyimpan data:", e);
+        }
+      }
+
+      async function afterDataChanged() {
+        await syncCarryoversUpToCurrent();
+        ensureMonthOptions();
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+      }
+
+      /* ================= AUTH ================= */
+      function requireAuth() {
+        if (!currentUser) {
+          showToast("🔒 Masuk dulu untuk menambah transaksi", true);
+          openAuthOverlay("login");
+          return false;
+        }
+        return true;
+      }
+
+      function updateAuthUI() {
+        const loggedIn = !!currentUser;
+        document.getElementById("monthPickerWrap").style.display = loggedIn
+          ? "flex"
+          : "none";
+        document.getElementById("topbarAuthArea").style.display = loggedIn
+          ? "none"
+          : "flex";
+        document.getElementById("moreAccountLoggedIn").style.display = loggedIn
+          ? "flex"
+          : "none";
+        document.getElementById("moreAccountLoggedOut").style.display = loggedIn
+          ? "none"
+          : "flex";
+        if (loggedIn) {
+          document.getElementById("moreAccountEmail").textContent =
+            currentUser.email || currentUser.displayName || "Akun kamu";
+        }
+      }
+
+      function openAuthOverlay(view) {
+        switchAuthView(view || "login");
+        document.getElementById("authOverlay").classList.add("show");
+      }
+      function closeAuthOverlay() {
+        document.getElementById("authOverlay").classList.remove("show");
+      }
+      function switchAuthView(view) {
+        const views = {
+          daftar: "authViewDaftar",
+          login: "authViewLogin",
+          lupa: "authViewLupa",
+          resetBaru: "authViewResetBaru",
+        };
+        Object.values(views).forEach((id) => {
+          document.getElementById(id).style.display = "none";
+        });
+        document.getElementById(views[view]).style.display = "block";
+      }
+
+      function checkRegForm() {
+        const e = document.getElementById("regEmail").value.trim();
+        const p = document.getElementById("regPassword").value;
+        const c = document.getElementById("regConfirm").value;
+        const ok = e.includes("@") && p.length >= 6 && p === c;
+        const btn = document.getElementById("btnDaftarSubmit");
+        btn.disabled = !ok;
+        btn.classList.toggle("ready", ok);
+      }
+      function checkLoginForm() {
+        const e = document.getElementById("loginEmail").value.trim();
+        const p = document.getElementById("loginPassword").value;
+        const ok = e.includes("@") && p.length > 0;
+        const btn = document.getElementById("btnLoginSubmit");
+        btn.disabled = !ok;
+        btn.classList.toggle("ready", ok);
+      }
+      function checkLupaForm() {
+        const e = document.getElementById("lupaEmail").value.trim();
+        const ok = e.includes("@");
+        const btn = document.getElementById("btnLupaSubmit");
+        btn.disabled = !ok;
+        btn.classList.toggle("ready", ok);
+      }
+      function checkResetForm() {
+        const p = document.getElementById("resetNewPassword").value;
+        const c = document.getElementById("resetNewConfirm").value;
+        const ok = p.length >= 6 && p === c;
+        const btn = document.getElementById("btnResetSubmit");
+        btn.disabled = !ok;
+        btn.classList.toggle("ready", ok);
+      }
+
+      async function doRegister() {
+        const email = document.getElementById("regEmail").value.trim();
+        const password = document.getElementById("regPassword").value;
+        const confirm = document.getElementById("regConfirm").value;
+        if (password !== confirm) {
+          showToast("⚠️ Konfirmasi password tidak cocok", true);
+          return;
+        }
+        try {
+          await auth.createUserWithEmailAndPassword(email, password);
+          showToast("✓ Akun berhasil dibuat, selamat datang!");
+        } catch (e) {
+          showToast("⚠️ " + authErrorMsg(e), true);
+        }
+      }
+
+      async function doLogin() {
+        const email = document.getElementById("loginEmail").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        try {
+          await auth.signInWithEmailAndPassword(email, password);
+          showToast("✓ Berhasil masuk");
+        } catch (e) {
+          showToast("⚠️ " + authErrorMsg(e), true);
+        }
+      }
+
+      async function googleSignIn() {
+        try {
+          // Pakai redirect (bukan popup) supaya lebih stabil di browser HP,
+          // termasuk in-app browser (IG/TikTok/WhatsApp) dan Safari iOS.
+          await auth.signInWithRedirect(googleProvider);
+          // Halaman akan pindah sebentar ke Google, lalu otomatis balik lagi
+          // ke web ini. Hasilnya ditangani di handleGoogleRedirectResult().
+        } catch (e) {
+          showToast("⚠️ " + authErrorMsg(e), true);
+        }
+      }
+
+      async function handleGoogleRedirectResult() {
+        try {
+          const result = await auth.getRedirectResult();
+          if (result && result.user) {
+            showToast("✓ Berhasil masuk dengan Google");
+          }
+        } catch (e) {
+          if (e && e.code) {
+            showToast("⚠️ " + authErrorMsg(e), true);
+          }
+        }
+      }
+
+      async function doForgotPassword() {
+        const email = document.getElementById("lupaEmail").value.trim();
+        try {
+          await auth.sendPasswordResetEmail(email, {
+            url: window.location.origin + window.location.pathname,
+          });
+          showToast(
+            "✓ Link reset password sudah dikirim, cek email kamu (termasuk folder spam)",
+          );
+          switchAuthView("login");
+        } catch (e) {
+          showToast("⚠️ " + authErrorMsg(e), true);
+        }
+      }
+
+      let pendingResetCode = null;
+      async function handleAuthActionLinks() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("mode") === "resetPassword" && params.get("oobCode")) {
+          const code = params.get("oobCode");
+          try {
+            const email = await auth.verifyPasswordResetCode(code);
+            pendingResetCode = code;
+            document.getElementById("resetEmailInfo").textContent =
+              `Buat password baru untuk ${email}`;
+            openAuthOverlay("resetBaru");
+          } catch (e) {
+            showToast(
+              "⚠️ Link reset password sudah tidak berlaku, minta link baru ya",
+              true,
+            );
+            openAuthOverlay("lupa");
+          }
+          // bersihkan query string biar link nggak terpakai ulang saat refresh
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname,
+          );
+        }
+      }
+
+      async function doConfirmReset() {
+        if (!pendingResetCode) return;
+        const newPassword = document.getElementById("resetNewPassword").value;
+        try {
+          await auth.confirmPasswordReset(pendingResetCode, newPassword);
+          showToast(
+            "✓ Password berhasil direset, silakan masuk dengan password baru",
+          );
+          pendingResetCode = null;
+          switchAuthView("login");
+        } catch (e) {
+          showToast("⚠️ " + authErrorMsg(e), true);
+        }
+      }
+
+      async function doLogout() {
+        await auth.signOut();
+        closeMoreModal();
+        showToast("👋 Berhasil keluar");
+      }
+
+      function authErrorMsg(e) {
+        const map = {
+          "auth/email-already-in-use": "Email ini sudah terdaftar, coba Login",
+          "auth/invalid-email": "Format email tidak valid",
+          "auth/weak-password": "Password minimal 6 karakter",
+          "auth/user-not-found": "Email/password salah atau belum terdaftar",
+          "auth/wrong-password": "Email/password salah",
+          "auth/invalid-credential": "Email/password salah",
+          "auth/too-many-requests": "Terlalu banyak percobaan, coba lagi nanti",
+          "auth/popup-closed-by-user": "Login Google dibatalkan",
+          "auth/account-exists-with-different-credential":
+            "Email ini sudah terdaftar dengan cara login lain, coba masuk pakai Email/Password",
+          "auth/network-request-failed": "Koneksi internet bermasalah",
+        };
+        return map[e.code] || e.message || "Terjadi kesalahan";
+      }
+
+      auth.onAuthStateChanged((user) => {
+        currentUser = user;
+        updateAuthUI();
+        if (unsubData) {
+          unsubData();
+          unsubData = null;
+        }
+        if (user) {
+          closeAuthOverlay();
+          document.getElementById("loadingOv").style.display = "";
+          const ref = db.collection("domvryn_users").doc(user.uid);
+          unsubData = ref.onSnapshot(
+            async (snap) => {
+              if (snap.exists) {
+                data = normalizeDataRows(snap.data().transactions || []);
+              } else {
+                data = [];
+                await ref.set({
+                  transactions: [],
+                  email: user.email || null,
+                  updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+              }
+              await afterDataChanged();
+              document.getElementById("loadingOv").style.display = "none";
+            },
+            (err) => {
+              console.error(err);
+              showToast("⚠️ Gagal menyinkronkan data", true);
+              document.getElementById("loadingOv").style.display = "none";
+            },
+          );
+        } else {
+          data = [];
+          afterDataChanged();
+        }
+      });
+
+      /* ---------------- helpers ---------------- */
+      function fmt(n) {
+        return "Rp " + Math.round(n).toLocaleString("id-ID");
+      }
+      function bulanOf(d) {
+        return d ? d.substring(0, 7) : null;
+      }
+      const BLN = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "Mei",
+        "Jun",
+        "Jul",
+        "Agu",
+        "Sep",
+        "Okt",
+        "Nov",
+        "Des",
+      ];
+      function monthLbl(ym) {
+        const [y, m] = ym.split("-");
+        return BLN[+m - 1] + " " + y;
+      }
+      function fmtDate(d) {
+        if (!d) return "—";
+        const [y, m, day] = d.split("-");
+        return +day + " " + BLN[+m - 1] + " " + y;
+      }
+      function todayStr() {
+        return new Date().toISOString().slice(0, 10);
+      }
+      function thisYm() {
+        const n = new Date();
+        return (
+          n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0")
+        );
+      }
+
+      /* ---------------- format input jumlah (ribuan) ---------------- */
+      function parseJumlahInput(el) {
+        const raw = String(el.value || "").replace(/[^\d]/g, "");
+        return raw ? parseInt(raw, 10) : NaN;
+      }
+      function formatJumlahInput(el) {
+        const digits = String(el.value || "").replace(/[^\d]/g, "");
+        el.value = digits ? Number(digits).toLocaleString("id-ID") : "";
+      }
+
+      /* ---------------- year & month picker ---------------- */
+      function transactionMonths() {
+        return [
+          ...new Set(
+            data
+              .filter((d) => !d.auto)
+              .map((d) => d.bulan || bulanOf(d.tanggal))
+              .filter(Boolean),
+          ),
+        ];
+      }
+
+      function ensureMonthOptions() {
+        const months = transactionMonths();
+        const nowYm = thisYm();
+
+        if (!months.length) months.push(nowYm);
+
+        const transactionYears = [
+          ...new Set(months.map((m) => m.split("-")[0])),
+        ];
+        const firstYear = transactionYears.length
+          ? Math.min(...transactionYears.map(Number))
+          : Number(nowYm.split("-")[0]);
+        const lastYear = Number(nowYm.split("-")[0]);
+
+        const years = [];
+        for (let y = lastYear; y >= firstYear; y--) years.push(String(y));
+
+        const prevYear = currentMonth ? currentMonth.split("-")[0] : null;
+        const prevMonth = currentMonth;
+        const yearSel = document.getElementById("yearPicker");
+
+        yearSel.innerHTML = years
+          .map((y) => `<option value="${y}">${y}</option>`)
+          .join("");
+
+        const targetYear =
+          prevYear && years.includes(prevYear) ? prevYear : years[0];
+
+        yearSel.value = targetYear;
+        rebuildMonthOptionsForYear(targetYear, prevMonth);
+      }
+
+      function rebuildMonthOptionsForYear(year, keepMonth) {
+        const monthSel = document.getElementById("monthPicker");
+        const months = transactionMonths()
+          .filter((ym) => ym.startsWith(year + "-"))
+          .sort();
+
+        if (!months.length) {
+          monthSel.innerHTML = `<option value="">Belum ada transaksi</option>`;
+          monthSel.disabled = true;
+          currentMonth = null;
+          return;
+        }
+
+        monthSel.disabled = false;
+        monthSel.innerHTML = months
+          .map((ym) => {
+            const m = Number(ym.split("-")[1]) - 1;
+            return `<option value="${ym}">${BLN[m]}</option>`;
+          })
+          .join("");
+
+        const target =
+          keepMonth && months.includes(keepMonth)
+            ? keepMonth
+            : months[months.length - 1];
+
+        monthSel.value = target;
+        currentMonth = target;
+      }
+
+      function onYearChange() {
+        const year = document.getElementById("yearPicker").value;
+        rebuildMonthOptionsForYear(year, null);
+        renderHome();
+        renderReport();
+        renderHistory();
+      }
+
+      function onMonthChange() {
+        currentMonth = document.getElementById("monthPicker").value || null;
+        renderHome();
+        renderReport();
+        renderHistory();
+      }
+
+      /* ---------------- screen switching ---------------- */
+      function switchScreen(name) {
+        document
+          .querySelectorAll(".screen")
+          .forEach((s) => s.classList.remove("active"));
+        document.getElementById("screen-" + name).classList.add("active");
+        document
+          .querySelectorAll(".nav-btn")
+          .forEach((b) =>
+            b.classList.toggle("active", b.dataset.target === name),
+          );
+        document.querySelector(".screens").scrollTop = 0;
+        if (name === "report") drawBar();
+      }
+
+      /* ---------------- add-transaction modal ---------------- */
+      function expenseCategoryOptions() {
+        return KATEGORI.map(
+          (k) => `<option value="${k.key}">${k.icon} ${k.key}</option>`,
+        ).join("");
+      }
+
+      function budgetGroupOptions() {
+        return Object.entries(BUDGET_GROUPS)
+          .map(
+            ([key, b]) =>
+              `<option value="${key}">${b.icon} ${b.label}</option>`,
+          )
+          .join("");
+      }
+
+      function incomeAllocationOptions() {
+        return (
+          `<option value="auto">✨ Otomatis sesuai bujet</option>` +
+          Object.entries(BUDGET_GROUPS)
+            .map(
+              ([key, b]) =>
+                `<option value="${key}">${b.icon} ${b.label}</option>`,
+            )
+            .join("")
+        );
+      }
+
+      function buildKatSelect() {
+        document.getElementById("fKat").innerHTML = expenseCategoryOptions();
+        document.getElementById("fTujuanBudget").innerHTML =
+          budgetGroupOptions();
+        document.getElementById("fAlokasiPemasukan").innerHTML =
+          incomeAllocationOptions();
+        document.getElementById("fMetode").innerHTML = METODE_PEMBAYARAN.map(
+          (m) => `<option value="${m.key}">${m.label}</option>`,
+        ).join("");
+      }
+
+      function openAddModal() {
+        if (!requireAuth()) return;
+        document.getElementById("fTanggal").value = todayStr();
+        document.getElementById("fKet").value = "";
+        document.getElementById("fJumlah").value = "";
+        document.getElementById("fMetode").value = "qris";
+        document.getElementById("fArah").value = "bank_cash";
+        document.getElementById("fWalletTransfer").value = "bank_bank";
+        document.getElementById("fTujuanBudget").value = "k";
+        document.getElementById("fAlokasiPemasukan").value = "auto";
+        setTipe("pemasukan");
+        document.getElementById("modalAdd").classList.add("show");
+      }
+
+      function openTransferForBudget(group) {
+        openAddModal();
+        setTipe("transfer_saldo");
+        document.getElementById("fKat").value = group;
+        document.getElementById("fTujuanBudget").value = group;
+        document.getElementById("fWalletTransfer").value = "bank_cash";
+        document.getElementById("fArah").value = "bank_cash";
+        document.getElementById("fKet").value =
+          `Pindah saldo ${BUDGET_GROUPS[group].label}`;
+        syncTransferModeUI();
+      }
+
+      function closeAddModal() {
+        document.getElementById("modalAdd").classList.remove("show");
+      }
+
+      /* ---------------- Pakai Saldo Celengan modal ---------------- */
+      function celenganCategoryOptions() {
+        return Object.entries(BUDGET_GROUPS)
+          .filter(([key]) => key !== "k" && key !== "w")
+          .map(
+            ([key, b]) =>
+              `<option value="${key}">${b.icon} ${b.label}</option>`,
+          )
+          .join("");
+      }
+
+      function openCelenganModal() {
+        if (!requireAuth()) return;
+        document.getElementById("fCelKat").innerHTML =
+          celenganCategoryOptions();
+        document.getElementById("fCelMetode").innerHTML = METODE_PEMBAYARAN.map(
+          (m) => `<option value="${m.key}">${m.label}</option>`,
+        ).join("");
+        document.getElementById("fCelTanggal").value = todayStr();
+        document.getElementById("fCelKet").value = "";
+        document.getElementById("fCelJumlah").value = "";
+        document.getElementById("fCelMetode").value = "qris";
+        updateCelenganSaldoInfo();
+        document.getElementById("modalCelengan").classList.add("show");
+      }
+
+      function closeCelenganModal() {
+        document.getElementById("modalCelengan").classList.remove("show");
+      }
+
+      function updateCelenganSaldoInfo() {
+        const group = document.getElementById("fCelKat").value;
+        const metode = document.getElementById("fCelMetode").value;
+        const bucket = metode === "cash" ? "cash" : "bank";
+        const cel = hitungCelengan();
+        const available = celenganBucketTotal(cel, group, bucket);
+        const info = document.getElementById("celSaldoInfo");
+        if (info) {
+          info.textContent = `Saldo Celengan ${BUDGET_GROUPS[group]?.label || ""} (${bucket === "cash" ? "💵 Cash" : "🏦 Bank"}) saat ini: ${fmt(available)}`;
+        }
+      }
+
+      async function simpanCelenganTransaksi() {
+        const tanggal = document.getElementById("fCelTanggal").value;
+        let ket = document.getElementById("fCelKet").value.trim();
+        const jml = parseJumlahInput(document.getElementById("fCelJumlah"));
+        const group = document.getElementById("fCelKat").value;
+        const metode = document.getElementById("fCelMetode").value;
+        const bucket = metode === "cash" ? "cash" : "bank";
+
+        if (!tanggal || isNaN(jml) || jml <= 0) {
+          showToast("⚠️ Lengkapi tanggal dan jumlah!", true);
+          return;
+        }
+        if (!ket) {
+          showToast("⚠️ Isi keterangan pemakaian saldo celengan!", true);
+          return;
+        }
+
+        const cel = hitungCelengan();
+        const available = celenganBucketTotal(cel, group, bucket);
+        if (jml > available) {
+          showToast(
+            `⚠️ Saldo Celengan ${bucket === "cash" ? "Cash" : "Bank"} pada ${BUDGET_GROUPS[group].label} cuma ${fmt(available)}`,
+            true,
+          );
+          return;
+        }
+
+        const ym = bulanOf(tanggal);
+        data.push({
+          id: Date.now(),
+          tanggal,
+          bulan: ym,
+          tipe: "pengeluaran",
+          ket,
+          jml,
+          kategori: BUDGET_GROUPS[group].label,
+          metode,
+          dariCelengan: true,
+        });
+
+        await saveData();
+        await syncCarryoversUpToCurrent();
+        ensureMonthOptions();
+        document.getElementById("yearPicker").value = ym.split("-")[0];
+        rebuildMonthOptionsForYear(ym.split("-")[0], ym);
+        currentMonth = ym;
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+        closeCelenganModal();
+        showToast("✓ Saldo Celengan terpakai & tercatat sebagai pengeluaran");
+      }
+
+      function syncTransferModeUI() {
+        const source = document.getElementById("fKat").value;
+        const target = document.getElementById("fTujuanBudget").value;
+        const same = source === target;
+
+        const fieldArah = document.getElementById("fieldArah");
+        const fieldWalletTransfer = document.getElementById(
+          "fieldWalletTransfer",
+        );
+        const hintTransfer = document.getElementById("hintTransfer");
+
+        if (currentTipe !== "transfer_saldo") {
+          fieldArah.style.display = "none";
+          fieldWalletTransfer.style.display = "none";
+          return;
+        }
+
+        if (same) {
+          fieldArah.style.display = "";
+          fieldWalletTransfer.style.display = "none";
+          hintTransfer.innerHTML =
+            "🔄 Pindah saldo <b>Bank ↔ Cash</b> dalam budget yang sama. " +
+            "Perpindahan ini <b>bukan pengeluaran</b>.";
+        } else {
+          fieldArah.style.display = "none";
+          fieldWalletTransfer.style.display = "";
+          hintTransfer.innerHTML =
+            "🔄 Pindah saldo dari <b>" +
+            (BUDGET_GROUPS[source]?.label || "Budget asal") +
+            "</b> ke <b>" +
+            (BUDGET_GROUPS[target]?.label || "Budget tujuan") +
+            "</b>. Perpindahan ini <b>bukan pengeluaran</b>.";
+        }
+      }
+
+      function transferWalletEndpoints() {
+        const source = document.getElementById("fKat").value;
+        const target = document.getElementById("fTujuanBudget").value;
+
+        if (source === target) {
+          const arah = document.getElementById("fArah").value;
+          return {
+            fromGroup: source,
+            toGroup: target,
+            fromBucket: arah === "cash_bank" ? "cash" : "bank",
+            toBucket: arah === "cash_bank" ? "bank" : "cash",
+            legacyArah: arah,
+          };
+        }
+
+        const route = document.getElementById("fWalletTransfer").value;
+        const parts = route.split("_");
+        return {
+          fromGroup: source,
+          toGroup: target,
+          fromBucket: parts[0] === "cash" ? "cash" : "bank",
+          toBucket: parts[1] === "cash" ? "cash" : "bank",
+          legacyArah: null,
+        };
+      }
+
+      function setTipe(t) {
+        currentTipe = t;
+        document
+          .getElementById("optIn")
+          .classList.toggle("sel-in", t === "pemasukan");
+        document
+          .getElementById("optOut")
+          .classList.toggle("sel-out", t === "pengeluaran");
+        document
+          .getElementById("optMove")
+          .classList.toggle("sel-transfer", t === "transfer_saldo");
+
+        const katSel = document.getElementById("fKat");
+        const katLabel = document.getElementById("fKatLabel");
+        const hintTransfer = document.getElementById("hintTransfer");
+        const fieldMetode = document.getElementById("fieldMetode");
+        const fieldArah = document.getElementById("fieldArah");
+        const fieldTujuanBudget = document.getElementById("fieldTujuanBudget");
+        const fieldAlokasiPemasukan = document.getElementById(
+          "fieldAlokasiPemasukan",
+        );
+        const fieldWalletTransfer = document.getElementById(
+          "fieldWalletTransfer",
+        );
+        const submit = document.getElementById("submitLabel");
+
+        hintTransfer.style.display = t === "transfer_saldo" ? "" : "none";
+        fieldMetode.style.display = t === "pengeluaran" ? "" : "none";
+        fieldTujuanBudget.style.display = t === "transfer_saldo" ? "" : "none";
+        fieldAlokasiPemasukan.style.display = t === "pemasukan" ? "" : "none";
+        fieldWalletTransfer.style.display = "none";
+        fieldArah.style.display = "none";
+        submit.textContent =
+          t === "transfer_saldo" ? "Pindahkan Saldo" : "Simpan Transaksi";
+
+        if (t === "pengeluaran") {
+          katSel.innerHTML = expenseCategoryOptions();
+          katLabel.textContent = "Kategori Pengeluaran";
+          katSel.disabled = false;
+          katSel.style.opacity = 1;
+          katSel.style.cursor = "pointer";
+        } else if (t === "transfer_saldo") {
+          katSel.innerHTML = budgetGroupOptions();
+          katLabel.textContent = "Budget Asal";
+          katSel.disabled = false;
+          katSel.style.opacity = 1;
+          katSel.style.cursor = "pointer";
+          document.getElementById("fTujuanBudget").innerHTML =
+            budgetGroupOptions();
+          syncTransferModeUI();
+        } else {
+          katSel.innerHTML = expenseCategoryOptions();
+          katLabel.textContent = "Kategori";
+          katSel.disabled = true;
+          katSel.style.opacity = 0.45;
+          katSel.style.cursor = "not-allowed";
+        }
+      }
+
+      function syncIncomeAllocationUI() {
+        if (currentTipe !== "pemasukan") return;
+        const katSel = document.getElementById("fKat");
+        katSel.disabled = true;
+        katSel.style.opacity = 0.45;
+        katSel.style.cursor = "not-allowed";
+      }
+
+      function onTransferBudgetChange() {
+        if (currentTipe === "transfer_saldo") {
+          syncTransferModeUI();
+        }
+      }
+
+      async function simpanTransaksi() {
+        const tanggal = document.getElementById("fTanggal").value;
+        let ket = document.getElementById("fKet").value.trim();
+        const jml = parseJumlahInput(document.getElementById("fJumlah"));
+
+        if (!tanggal || isNaN(jml) || jml <= 0) {
+          showToast("⚠️ Lengkapi tanggal dan jumlah!", true);
+          return;
+        }
+
+        const ym = bulanOf(tanggal);
+        const monthRows = rowsForMonth(ym);
+
+        if (currentTipe === "transfer_saldo") {
+          const route = transferWalletEndpoints();
+          const sourceStats = walletStatsForGroup(monthRows, route.fromGroup);
+          const sourceAvailable =
+            route.fromBucket === "cash" ? sourceStats.cash : sourceStats.bank;
+          const sourceName = route.fromBucket === "cash" ? "Cash" : "Bank";
+          const sourceBudgetName = BUDGET_GROUPS[route.fromGroup].label;
+          const targetBudgetName = BUDGET_GROUPS[route.toGroup].label;
+
+          if (jml > sourceAvailable) {
+            showToast(
+              `⚠️ Saldo ${sourceName} pada budget ${sourceBudgetName} hanya ${fmt(sourceAvailable)}`,
+              true,
+            );
+            return;
+          }
+
+          if (!ket) {
+            ket =
+              route.fromGroup === route.toGroup
+                ? `Pindah saldo ${sourceBudgetName}`
+                : `Pindah ${sourceBudgetName} → ${targetBudgetName}`;
+          }
+
+          data.push({
+            id: Date.now(),
+            tanggal,
+            bulan: ym,
+            tipe: "transfer_saldo",
+            ket,
+            jml,
+            kategori: targetBudgetName,
+            budgetGroup: route.fromGroup,
+            arah: route.legacyArah || `${route.fromBucket}_${route.toBucket}`,
+            transferFromGroup: route.fromGroup,
+            transferToGroup: route.toGroup,
+            transferFromBucket: route.fromBucket,
+            transferToBucket: route.toBucket,
+          });
+        } else if (currentTipe === "pengeluaran") {
+          const kat = document.getElementById("fKat").value;
+          const metode = document.getElementById("fMetode").value;
+          const group = groupOfKategori(kat);
+          const bucket = metode === "cash" ? "cash" : "bank";
+          const ws = walletStatsForGroup(monthRows, group);
+          const available = bucket === "cash" ? ws.cash : ws.bank;
+
+          if (!ket) {
+            showToast("⚠️ Isi keterangan pengeluaran!", true);
+            return;
+          }
+          if (jml > available) {
+            showToast(
+              `⚠️ Saldo ${bucket === "cash" ? "Cash" : "Bank"} pada budget ${BUDGET_GROUPS[group].label} hanya ${fmt(available)}`,
+              true,
+            );
+            return;
+          }
+
+          data.push({
+            id: Date.now(),
+            tanggal,
+            bulan: ym,
+            tipe: "pengeluaran",
+            ket,
+            jml,
+            kategori: kat,
+            metode,
+          });
+        } else {
+          if (!ket) {
+            showToast("⚠️ Isi keterangan pemasukan!", true);
+            return;
+          }
+          const alokasi =
+            currentTipe === "pemasukan"
+              ? document.getElementById("fAlokasiPemasukan")?.value || "auto"
+              : "auto";
+
+          data.push({
+            id: Date.now(),
+            tanggal,
+            bulan: ym,
+            tipe: currentTipe,
+            ket,
+            jml,
+            kategori: alokasi !== "auto" ? BUDGET_GROUPS[alokasi].label : "",
+            alokasiManual: currentTipe === "pemasukan" && alokasi !== "auto",
+            alokasiGroup: alokasi !== "auto" ? alokasi : "",
+          });
+        }
+
+        await saveData();
+        await syncCarryoversUpToCurrent();
+        ensureMonthOptions();
+        document.getElementById("yearPicker").value = ym.split("-")[0];
+        rebuildMonthOptionsForYear(ym.split("-")[0], ym);
+        currentMonth = ym;
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+        closeAddModal();
+        showToast(
+          currentTipe === "transfer_saldo"
+            ? "✓ Saldo berhasil dipindahkan"
+            : "✓ Transaksi ditambahkan",
+        );
+      }
+
+      async function hapusTransaksi(id) {
+        data = data.filter((d) => d.id !== id);
+        await saveData();
+        await syncCarryoversUpToCurrent();
+        ensureMonthOptions();
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+        showToast("✓ Transaksi dihapus");
+      }
+
+      /* ---------------- more modal ---------------- */
+      function openMoreModal() {
+        document.getElementById("modalMore").classList.add("show");
+      }
+      function closeMoreModal() {
+        document.getElementById("modalMore").classList.remove("show");
+      }
+
+      async function resetAllData() {
+        if (!requireAuth()) return;
+        if (
+          !confirm(
+            "Hapus semua data transaksi? Tindakan ini tidak bisa dibatalkan.",
+          )
+        )
+          return;
+        data = [];
+        await saveData();
+        await syncCarryoversUpToCurrent();
+        ensureMonthOptions();
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+        closeMoreModal();
+        showToast("✓ Semua data telah dihapus");
+      }
+
+      /* ---------------- HOME render ---------------- */
+      function rowsForMonth(ym) {
+        return data.filter((d) => (d.bulan || bulanOf(d.tanggal)) === ym);
+      }
+
+      /* ---------------- CARRY OVER SALDO BULAN KEMARIN ---------------- */
+      function firstDateOf(ym) {
+        return ym + "-01";
+      }
+
+      function nextYmOf(ym) {
+        const [y, m] = ym.split("-").map(Number);
+        const d = new Date(y, m, 1);
+        return (
+          d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+        );
+      }
+
+      function prevYmOf(ym) {
+        const [y, m] = ym.split("-").map(Number);
+        const d = new Date(y, m - 2, 1);
+        return (
+          d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+        );
+      }
+
+      function sumCarryByGroup(rows, group, bucket = null) {
+        return rows
+          .filter((r) => {
+            if (r.tipe !== "saldo_bulan_lalu") return false;
+            const rowGroup =
+              r.carryoverGroup || groupOfKategori(r.kategori || "Kebutuhan");
+            const rowBucket = r.carryBucket || "bank";
+            return rowGroup === group && (!bucket || rowBucket === bucket);
+          })
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+      }
+
+      function budgetStatsForMonth(ym) {
+        const rows = rowsForMonth(ym);
+        const groups = {};
+
+        Object.keys(BUDGET_GROUPS).forEach((group) => {
+          const ws = walletStatsForGroup(rows, group);
+          groups[group] = {
+            bank: Math.max(0, ws.bank),
+            cash: Math.max(0, ws.cash),
+            total: Math.max(0, ws.bank) + Math.max(0, ws.cash),
+          };
+        });
+
+        return { rows, groups };
+      }
+
+      function upsertCarryover(targetYm, fromYm, group, bucket, amount) {
+        const budget = BUDGET_GROUPS[group] || BUDGET_GROUPS.k;
+        const bucketLabel = bucket === "cash" ? "Cash" : "Bank";
+        const bucketIcon = bucket === "cash" ? "💵" : "🏦";
+        const ket = `Saldo bulan kemarin (${monthLbl(fromYm)}) - ${budget.label} - ${bucketLabel}`;
+        const idx = data.findIndex(
+          (r) =>
+            r.tipe === "saldo_bulan_lalu" &&
+            r.carryoverFrom === fromYm &&
+            (r.carryoverGroup || groupOfKategori(r.kategori || "Kebutuhan")) ===
+              group &&
+            (r.carryBucket || "bank") === bucket &&
+            (r.bulan || bulanOf(r.tanggal)) === targetYm,
+        );
+
+        if (amount > 0) {
+          const row = {
+            id:
+              idx >= 0
+                ? data[idx].id
+                : Date.now() + Math.floor(Math.random() * 1000000),
+            tanggal: firstDateOf(targetYm),
+            bulan: targetYm,
+            tipe: "saldo_bulan_lalu",
+            ket,
+            jml: amount,
+            kategori: budget.label,
+            carryoverFrom: fromYm,
+            carryoverGroup: group,
+            carryBucket: bucket,
+            carryBucketLabel: `${bucketIcon} ${bucketLabel}`,
+            auto: true,
+          };
+          if (idx >= 0) {
+            const old = data[idx];
+            const changed =
+              Number(old.jml || 0) !== Number(row.jml || 0) ||
+              old.ket !== row.ket ||
+              old.tanggal !== row.tanggal ||
+              old.kategori !== row.kategori ||
+              old.carryBucket !== row.carryBucket ||
+              old.carryoverGroup !== row.carryoverGroup;
+            if (changed) data[idx] = { ...old, ...row };
+            return changed;
+          }
+          data.push(row);
+          return true;
+        }
+
+        if (idx >= 0) {
+          data.splice(idx, 1);
+          return true;
+        }
+        return false;
+      }
+
+      // PENTING: mulai sekarang, carry-over otomatis sisa bulan sebelumnya
+      // ke alokasi bulan berikutnya HANYA berlaku untuk kelompok "Kebutuhan"
+      // (k) dan "Jajan/Keinginan" (w). Kelompok Tabungan, Dana Darurat,
+      // Healing & Hiburan, dan Tabung Emas TIDAK auto-carry jadi alokasi
+      // bulan depan — sisanya berhenti sebagai saldo "Celengan" (lihat
+      // hitungCelengan()) dan cuma bisa dipakai lewat tombol
+      // "Pakai Saldo Celengan" yang terpisah dari tambah transaksi biasa.
+      const AUTO_CARRY_GROUPS = ["k", "w"];
+
+      async function syncCarryoversUpToCurrent() {
+        const targetLimit = thisYm();
+
+        // Bersihkan baris carry-over lama (peninggalan versi sebelumnya)
+        // untuk kelompok selain Kebutuhan, supaya tidak dobel dihitung
+        // dengan akumulasi saldo Celengan.
+        const beforeLen = data.length;
+        data = data.filter((r) => {
+          if (r.tipe !== "saldo_bulan_lalu") return true;
+          const group =
+            r.carryoverGroup || groupOfKategori(r.kategori || "Kebutuhan");
+          return AUTO_CARRY_GROUPS.includes(group);
+        });
+        let changed = data.length !== beforeLen;
+
+        const months = [
+          ...new Set(data.map((d) => d.bulan || bulanOf(d.tanggal))),
+        ]
+          .filter(Boolean)
+          .sort();
+        if (!months.length) {
+          if (changed) await saveData();
+          return;
+        }
+
+        let targetYm = nextYmOf(months[0]);
+        const buckets = ["bank", "cash"];
+
+        while (targetYm <= targetLimit) {
+          const fromYm = prevYmOf(targetYm);
+          const stats = budgetStatsForMonth(fromYm);
+
+          AUTO_CARRY_GROUPS.forEach((group) => {
+            buckets.forEach((bucket) => {
+              const amount = stats.groups[group]?.[bucket] || 0;
+              changed =
+                upsertCarryover(targetYm, fromYm, group, bucket, amount) ||
+                changed;
+            });
+          });
+
+          targetYm = nextYmOf(targetYm);
+        }
+
+        if (changed) await saveData();
+      }
+
+      function renderHome() {
+        const rows = rowsForMonth(currentMonth);
+        const totalIn = rows
+          .filter((r) => r.tipe === "pemasukan")
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+        const totalSBL = rows
+          .filter((r) => r.tipe === "pemasukan_tetap")
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+        const totalOut = rows
+          .filter((r) => r.tipe === "pengeluaran")
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+        const carryByGroup = Object.fromEntries(
+          Object.keys(BUDGET_GROUPS).map((group) => [
+            group,
+            {
+              bank: sumCarryByGroup(rows, group, "bank"),
+              cash: sumCarryByGroup(rows, group, "cash"),
+            },
+          ]),
+        );
+        const totalCarry = Object.values(carryByGroup).reduce(
+          (sum, value) => sum + value.bank + value.cash,
+          0,
+        );
+
+        const allocations = {
+          k: budgetAllocation(rows, "k"),
+          w: budgetAllocation(rows, "w"),
+          t: budgetAllocation(rows, "t"),
+          c: budgetAllocation(rows, "c"),
+          h: budgetAllocation(rows, "h"),
+          e: budgetAllocation(rows, "e"),
+        };
+        const used = {
+          k: sumOutByGroup(rows, "k"),
+          w: sumOutByGroup(rows, "w"),
+          t: sumOutByGroup(rows, "t"),
+          c: sumOutByGroup(rows, "c"),
+          h: sumOutByGroup(rows, "h"),
+          e: sumOutByGroup(rows, "e"),
+        };
+
+        const saldo = totalIn + totalSBL + totalCarry - totalOut;
+        document.getElementById("heroSaldo").textContent = fmt(saldo);
+        document.getElementById("heroIn").textContent = fmt(
+          totalIn + totalSBL + totalCarry,
+        );
+        document.getElementById("heroOut").textContent = fmt(totalOut);
+
+        function progHtml(amountUsed, budget) {
+          const pct = budget > 0 ? (amountUsed / budget) * 100 : 0;
+          const over = amountUsed > budget && budget > 0;
+          const warn = !over && pct >= 75;
+          const fc = over ? "o" : warn ? "w" : "n";
+          const sisa = budget - amountUsed;
+          const ovfW = over
+            ? Math.min(40, ((amountUsed - budget) / budget) * 100)
+            : 0;
+          return `
+            <div class="prog-track" title="Terpakai ${Math.round(pct)}%">
+              <div class="prog-fill ${fc}" style="width:${over ? 100 : Math.min(100, pct)}%"></div>
+              ${over ? `<div class="prog-over" style="width:${ovfW}%"></div>` : ""}
+            </div>
+            ${
+              over
+                ? `<div class="over-flag">⚠️ Lebih ${fmt(amountUsed - budget)} (${Math.round(pct)}%)</div>`
+                : `<div class="prog-info">${fmt(amountUsed)} terpakai · <b class="${sisa >= 0 ? "ok" : "bad"}">${fmt(Math.abs(sisa))} ${sisa >= 0 ? "sisa" : "lebih"}</b></div>`
+            }
+            <div class="tap-hint">👆 Ketuk untuk lihat rincian</div>`;
+        }
+
+        const sblTag =
+          totalSBL > 0
+            ? `<div class="sbl-note">💙 +${fmt(totalSBL)} dari pemasukan tetap</div>`
+            : "";
+        function carryTag(group) {
+          const carry = carryByGroup[group];
+          if (!carry || (carry.bank <= 0 && carry.cash <= 0)) return "";
+          const parts = [];
+          if (carry.bank > 0) parts.push(`🏦 ${fmt(carry.bank)}`);
+          if (carry.cash > 0) parts.push(`💵 ${fmt(carry.cash)}`);
+          return `<div class="sbl-note">💛 Saldo bulan lalu: ${parts.join(" · ")}</div>`;
+        }
+
+        function cardHtml(group, extraTag = "") {
+          const b = BUDGET_GROUPS[group];
+          const allocation = allocations[group];
+          return `<div class="budget-card" id="bc-${group}" onclick="toggleBudgetDetail('${group}')">
+            <div class="budget-top">
+              <div class="budget-name">${b.icon} ${b.label}</div>
+              <div class="budget-amt">${fmt(allocation)}</div>
+            </div>
+            ${extraTag}
+            ${walletSplitHtml(group, rows, allocation)}
+            ${progHtml(used[group], allocation)}
+            ${budgetDetailHtml(group, rows, used[group], allocation)}
+          </div>`;
+        }
+
+        document.getElementById("budgetCards").innerHTML = [
+          cardHtml("k", sblTag + carryTag("k")),
+          cardHtml("w", carryTag("w")),
+          cardHtml("t", carryTag("t")),
+          cardHtml("c", carryTag("c")),
+          cardHtml("h", carryTag("h")),
+          cardHtml("e", carryTag("e")),
+        ].join("");
+
+        drawDonutBudget(
+          allocations.k,
+          allocations.w,
+          allocations.t,
+          allocations.c,
+          allocations.h,
+          allocations.e,
+        );
+      }
+
+      function drawDonutBudget(k, w, t, cad, h, e) {
+        const cv = document.getElementById("donutBudget"),
+          ctx = cv.getContext("2d");
+        const W = cv.width,
+          H = cv.height,
+          cx = W / 2,
+          cy = H / 2,
+          r = Math.min(W, H) / 2 - 10,
+          inner = r * 0.56;
+        const total = k + w + t + cad + h + e;
+        const legend = document.getElementById("legendBudget");
+        ctx.clearRect(0, 0, W, H);
+        if (!total) {
+          ctx.fillStyle = "#F1EDFF";
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#AAA2B8";
+          ctx.font = '11px "Plus Jakarta Sans",sans-serif';
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("Belum ada pemasukan", cx, cy);
+          legend.innerHTML = "";
+          cv.onmousemove = null;
+          cv.onclick = null;
+          cv.ontouchstart = null;
+          return;
+        }
+        const slices = [
+          {
+            key: "k",
+            icon: "🧾",
+            name: "Kebutuhan",
+            l: "Kebutuhan",
+            v: k,
+            c: "#ff7a8a",
+          },
+          {
+            key: "w",
+            icon: "💅",
+            name: "Jajan/Keinginan",
+            l: "Jajan/Keinginan",
+            v: w,
+            c: "#d66ba0",
+          },
+          {
+            key: "t",
+            icon: "🏦",
+            name: "Tabungan",
+            l: "Tabungan",
+            v: t,
+            c: "#8b7cf6",
+            pct: 15,
+          },
+          {
+            key: "c",
+            icon: "🛡️",
+            name: "Dana Darurat",
+            l: "Dana Darurat",
+            v: cad,
+            c: "#f4b860",
+          },
+          {
+            key: "h",
+            icon: "🎟️",
+            name: "Healing & Hiburan",
+            l: "Healing & Hiburan",
+            v: h,
+            c: "#67b7dc",
+          },
+          {
+            key: "e",
+            icon: "🪙",
+            name: "Tabung Emas",
+            l: "Tabung Emas",
+            v: e,
+            c: "#d9a441",
+            pct: 5,
+          },
+        ];
+        let a = -Math.PI / 2;
+        slices.forEach((s) => {
+          const sw = (s.v / total) * Math.PI * 2;
+          s.start = a;
+          s.end = a + sw;
+          s.pct = Math.round((s.v / total) * 100);
+          a += sw;
+        });
+        lastBudgetSlices = slices;
+
+        function render(activeKey) {
+          ctx.clearRect(0, 0, W, H);
+          slices.forEach((s) => {
+            const active = s.key === activeKey;
+            const rr = active ? r + 5 : r;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, rr, s.start, s.end);
+            ctx.closePath();
+            ctx.fillStyle = s.c;
+            ctx.globalAlpha = activeKey && !active ? 0.55 : 1;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = active ? 5 : 3;
+            ctx.stroke();
+          });
+          ctx.beginPath();
+          ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+          ctx.fillStyle = "#fff";
+          ctx.fill();
+          const active = slices.find((s) => s.key === activeKey);
+          ctx.fillStyle = "#272238";
+          ctx.font = 'bold 13px "DM Mono",monospace';
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(active ? fmt(active.v) : fmt(total), cx, cy - 7);
+          ctx.fillStyle = "#AAA2B8";
+          ctx.font = '9px "Plus Jakarta Sans",sans-serif';
+          ctx.fillText(active ? active.name : "Pemasukan", cx, cy + 10);
+        }
+        render(null);
+
+        cv.onmousemove = (e) => {
+          const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
+          if (hit) {
+            render(hit.key);
+            showChartTooltip(
+              `${hit.icon} ${hit.name}<br>${fmt(hit.v)} · ${hit.pct}%`,
+              e.clientX,
+              e.clientY,
+            );
+            cv.style.cursor = "pointer";
+          } else {
+            render(null);
+            hideChartTooltip();
+            cv.style.cursor = "default";
+          }
+        };
+        cv.onmouseleave = () => {
+          render(null);
+          hideChartTooltip();
+        };
+        cv.onclick = (e) => {
+          const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
+          if (hit) {
+            showBudgetSliceInfo(hit.key);
+            toggleBudgetDetail(hit.key);
+          }
+        };
+        cv.ontouchstart = (e) => {
+          const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
+          if (hit) {
+            e.preventDefault();
+            const pt = pointerOnCanvas(e, cv);
+            render(hit.key);
+            showChartTooltip(
+              `${hit.icon} ${hit.name}<br>${fmt(hit.v)} · ${hit.pct}%`,
+              pt.clientX,
+              pt.clientY,
+            );
+            showBudgetSliceInfo(hit.key);
+            toggleBudgetDetail(hit.key);
+            setTimeout(hideChartTooltip, 1800);
+          }
+        };
+        legend.innerHTML = slices
+          .map(
+            (s) =>
+              `<div class="legend-item" onclick="showBudgetSliceInfo('${s.key}');toggleBudgetDetail('${s.key}')"><div class="legend-dot" style="background:${s.c}"></div>${s.l}</div>`,
+          )
+          .join("");
+      }
+
+      /* ---------------- REPORT render ---------------- */
+      function renderReport() {
+        drawBar();
+        drawSpendDonut();
+      }
+
+      let barAnim = null;
+      function drawBar() {
+        const rows = rowsForMonth(currentMonth);
+        const inc = rows
+          .filter(
+            (r) =>
+              r.tipe === "pemasukan" ||
+              r.tipe === "pemasukan_tetap" ||
+              r.tipe === "saldo_bulan_lalu",
+          )
+          .reduce((s, r) => s + r.jml, 0);
+        const out = rows
+          .filter((r) => r.tipe === "pengeluaran")
+          .reduce((s, r) => s + r.jml, 0);
+
+        const cv = document.getElementById("barCanvas");
+        const dpr = window.devicePixelRatio || 1;
+        const Wcss = cv.offsetWidth || 360;
+        cv.width = Wcss * dpr;
+        cv.height = 190 * dpr;
+        cv.style.width = Wcss + "px";
+        cv.style.height = "190px";
+        const ctx = cv.getContext("2d");
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        const W = Wcss,
+          H = 190,
+          padT = 22,
+          padB = 40,
+          padX = 52;
+        const chartH = H - padT - padB,
+          chartW = W - padX * 2;
+        const barW = Math.min(64, chartW * 0.28),
+          gap = Math.min(26, chartW * 0.1);
+        const totalBarW = barW * 2 + gap,
+          cx = W / 2,
+          x1 = cx - totalBarW / 2,
+          x2 = x1 + barW + gap;
+        const mx = Math.max(inc, out, 1);
+        const MINT = "#8B7CF6",
+          CORAL = "#FF7A8A";
+
+        let prog = 0;
+        if (barAnim) cancelAnimationFrame(barAnim);
+
+        function roundRect(x, y, w, h, rad) {
+          if (h <= 0) return;
+          rad = Math.min(rad, h, w / 2);
+          ctx.beginPath();
+          ctx.moveTo(x + rad, y);
+          ctx.lineTo(x + w - rad, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+          ctx.lineTo(x + w, y + h);
+          ctx.lineTo(x, y + h);
+          ctx.lineTo(x, y + rad);
+          ctx.quadraticCurveTo(x, y, x + rad, y);
+          ctx.closePath();
+        }
+        function drawGrid() {
+          ctx.clearRect(0, 0, W, H);
+          const steps = 4;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          ctx.font = '10px "DM Mono",monospace';
+          for (let i = 0; i <= steps; i++) {
+            const val = (mx / steps) * i;
+            const y = padT + chartH - (val / mx) * chartH;
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(21,48,44,.08)";
+            ctx.lineWidth = 1;
+            ctx.moveTo(padX - 6, y);
+            ctx.lineTo(W - padX + 6, y);
+            ctx.stroke();
+            ctx.fillStyle = "#AAA2B8";
+            const lbl =
+              val >= 1000000
+                ? (val / 1000000).toFixed(1) + "jt"
+                : val >= 1000
+                  ? (val / 1000).toFixed(0) + "rb"
+                  : val.toFixed(0);
+            ctx.fillText(lbl, padX - 10, y);
+          }
+        }
+        function animate() {
+          prog = Math.min(1, prog + 0.045);
+          const ease = 1 - Math.pow(1 - prog, 3);
+          drawGrid();
+          const hIn = (inc / mx) * chartH * ease,
+            hOut = (out / mx) * chartH * ease,
+            baseY = padT + chartH;
+          ctx.shadowColor = "rgba(139,124,246,.25)";
+          ctx.shadowBlur = 10;
+          roundRect(x1, baseY - hIn, barW, hIn, 8);
+          ctx.fillStyle = MINT;
+          ctx.fill();
+          ctx.shadowColor = "rgba(255,122,138,.22)";
+          roundRect(x2, baseY - hOut, barW, hOut, 8);
+          ctx.fillStyle = CORAL;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          if (inc > 0) {
+            ctx.font = 'bold 11px "DM Mono",monospace';
+            ctx.fillStyle = MINT;
+            const lbl =
+              inc >= 1000000
+                ? (inc / 1000000).toFixed(1) + "jt"
+                : inc >= 1000
+                  ? (inc / 1000).toFixed(0) + "rb"
+                  : String(inc);
+            ctx.fillText(lbl, x1 + barW / 2, baseY - hIn - 4);
+          }
+          if (out > 0) {
+            ctx.font = 'bold 11px "DM Mono",monospace';
+            ctx.fillStyle = CORAL;
+            const lbl =
+              out >= 1000000
+                ? (out / 1000000).toFixed(1) + "jt"
+                : out >= 1000
+                  ? (out / 1000).toFixed(0) + "rb"
+                  : String(out);
+            ctx.fillText(lbl, x2 + barW / 2, baseY - hOut - 4);
+          }
+          ctx.font = '11px "Plus Jakarta Sans",sans-serif';
+          ctx.fillStyle = "#5E7A75";
+          ctx.textBaseline = "top";
+          ctx.fillText("Masuk", x1 + barW / 2, baseY + 8);
+          ctx.fillText("Keluar", x2 + barW / 2, baseY + 8);
+          if (prog < 1) barAnim = requestAnimationFrame(animate);
+          else barAnim = null;
+        }
+        animate();
+
+        const tooltip = document.getElementById("barTooltip");
+        cv.onmousemove = (e) => {
+          const rect = cv.getBoundingClientRect();
+          const mx2 = e.clientX - rect.left,
+            my = e.clientY - rect.top;
+          const baseY = H - padB;
+          const hIn = (inc / Math.max(inc, out, 1)) * chartH,
+            hOut = (out / Math.max(inc, out, 1)) * chartH;
+          const inBox =
+            mx2 >= x1 && mx2 <= x1 + barW && my >= baseY - hIn && my <= baseY;
+          const outBox =
+            mx2 >= x2 && mx2 <= x2 + barW && my >= baseY - hOut && my <= baseY;
+          if (inBox) {
+            tooltip.style.display = "block";
+            tooltip.textContent = "💜 Pemasukan: " + fmt(inc);
+            tooltip.style.left = x1 + barW / 2 - tooltip.offsetWidth / 2 + "px";
+            tooltip.style.top = baseY - hIn - 34 + "px";
+            cv.style.cursor = "pointer";
+          } else if (outBox) {
+            tooltip.style.display = "block";
+            tooltip.textContent = "🌸 Pengeluaran: " + fmt(out);
+            tooltip.style.left = x2 + barW / 2 - tooltip.offsetWidth / 2 + "px";
+            tooltip.style.top = baseY - hOut - 34 + "px";
+            cv.style.cursor = "pointer";
+          } else {
+            tooltip.style.display = "none";
+            cv.style.cursor = "default";
+          }
+        };
+        cv.onmouseleave = () => {
+          tooltip.style.display = "none";
+        };
+        cv.onclick = (e) => {
+          const rect = cv.getBoundingClientRect();
+          const mx2 = e.clientX - rect.left,
+            my = e.clientY - rect.top;
+          const baseY = H - padB;
+          const hIn = (inc / Math.max(inc, out, 1)) * chartH,
+            hOut = (out / Math.max(inc, out, 1)) * chartH;
+          const inBox =
+            mx2 >= x1 && mx2 <= x1 + barW && my >= baseY - hIn && my <= baseY;
+          const outBox =
+            mx2 >= x2 && mx2 <= x2 + barW && my >= baseY - hOut && my <= baseY;
+          if (inBox) showToast("💜 Total pemasukan: " + fmt(inc));
+          else if (outBox) showToast("🌸 Total pengeluaran: " + fmt(out));
+        };
+        cv.ontouchstart = (e) => {
+          const t = e.touches && e.touches[0];
+          if (!t) return;
+          cv.onclick({ clientX: t.clientX, clientY: t.clientY });
+        };
+
+        const tot = inc + out,
+          pI = tot ? Math.round((inc / tot) * 100) : 50,
+          pO = tot ? Math.round((out / tot) * 100) : 50;
+        document.getElementById("ratioWrap").innerHTML = `
+      <div class="ratio-lbl"><span>💜 ${pI}% — ${fmt(inc)}</span><span>${fmt(out)} — ${pO}% 🌸</span></div>
+      <div class="ratio-track" onclick="showToast('${inc >= out ? "✅ Surplus " + fmt(inc - out) : "⚠️ Defisit " + fmt(out - inc)}')"><div class="ratio-in" style="width:${pI}%"></div><div class="ratio-out" style="width:${pO}%"></div></div>
+      <div class="ratio-note">${inc >= out ? "✅ Surplus " + fmt(inc - out) : "⚠️ Defisit " + fmt(out - inc) + " — pengeluaran melebihi pemasukan"}</div>`;
+      }
+
+      function drawSpendDonut(activeKey = null) {
+        const rows = rowsForMonth(currentMonth);
+        const cv = document.getElementById("spendDonut"),
+          ctx = cv.getContext("2d");
+        const W = cv.width,
+          H = cv.height,
+          cx = W / 2,
+          cy = H / 2,
+          r = Math.min(W, H) / 2 - 8,
+          inner = r * 0.56;
+        ctx.clearRect(0, 0, W, H);
+        const listEl = document.getElementById("spendList"),
+          emptyEl = document.getElementById("spendEmpty");
+        const out = rows.filter((r) => r.tipe === "pengeluaran");
+        const tot = out.reduce((s, r) => s + r.jml, 0);
+        if (!tot) {
+          cv.style.display = "none";
+          emptyEl.style.display = "";
+          listEl.innerHTML = "";
+          lastSpendSlices = [];
+          return;
+        }
+        cv.style.display = "";
+        emptyEl.style.display = "none";
+        const map = {};
+        out.forEach((r) => {
+          const k = normalizeKategori(r.kategori);
+          map[k] = (map[k] || 0) + r.jml;
+        });
+        const slices = KATEGORI.filter((k) => map[k.key])
+          .map((k) => ({ ...k, val: map[k.key] }))
+          .sort((a, b) => b.val - a.val);
+        let a = -Math.PI / 2;
+        slices.forEach((s) => {
+          const sw = (s.val / tot) * Math.PI * 2;
+          s.start = a;
+          s.end = a + sw;
+          s.pct = Math.round((s.val / tot) * 100);
+          a += sw;
+        });
+        lastSpendSlices = slices;
+
+        function render(active) {
+          ctx.clearRect(0, 0, W, H);
+          slices.forEach((s) => {
+            const isActive = s.key === active;
+            const rr = isActive ? r + 5 : r;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, rr, s.start, s.end);
+            ctx.closePath();
+            ctx.globalAlpha = active && !isActive ? 0.55 : 1;
+            ctx.fillStyle = s.color;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = isActive ? 5 : 3;
+            ctx.stroke();
+          });
+          ctx.beginPath();
+          ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+          ctx.fillStyle = "#fff";
+          ctx.fill();
+          const activeSlice = slices.find((s) => s.key === active);
+          ctx.fillStyle = "#272238";
+          ctx.font = 'bold 12px "DM Mono",monospace';
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(
+            activeSlice ? fmt(activeSlice.val) : fmt(tot),
+            cx,
+            cy - 6,
+          );
+          ctx.fillStyle = "#AAA2B8";
+          ctx.font = '9px "Plus Jakarta Sans",sans-serif';
+          ctx.fillText(
+            activeSlice ? activeSlice.key : "Total Keluar",
+            cx,
+            cy + 8,
+          );
+        }
+        render(activeKey);
+
+        cv.onmousemove = (e) => {
+          const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
+          if (hit) {
+            render(hit.key);
+            showChartTooltip(
+              `${hit.icon} ${hit.key}<br>${fmt(hit.val)} · ${hit.pct}%`,
+              e.clientX,
+              e.clientY,
+            );
+            cv.style.cursor = "pointer";
+          } else {
+            render(null);
+            hideChartTooltip();
+            cv.style.cursor = "default";
+          }
+        };
+        cv.onmouseleave = () => {
+          render(null);
+          hideChartTooltip();
+        };
+        cv.onclick = (e) => {
+          const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
+          if (hit) {
+            showSpendSliceInfo(hit.key);
+            toggleSpendDetail(hit.key, true);
+          }
+        };
+        cv.ontouchstart = (e) => {
+          const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
+          if (hit) {
+            e.preventDefault();
+            const pt = pointerOnCanvas(e, cv);
+            render(hit.key);
+            showChartTooltip(
+              `${hit.icon} ${hit.key}<br>${fmt(hit.val)} · ${hit.pct}%`,
+              pt.clientX,
+              pt.clientY,
+            );
+            showSpendSliceInfo(hit.key);
+            toggleSpendDetail(hit.key, true);
+            setTimeout(hideChartTooltip, 1800);
+          }
+        };
+
+        listEl.innerHTML = slices
+          .map((s) => {
+            const txs = out
+              .filter((r) => normalizeKategori(r.kategori) === s.key)
+              .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+            const details = txs
+              .map(
+                (r) => `
+        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)}<div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${metodeLabel(r.metode)}</div></span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
+              )
+              .join("");
+            const id = safeDomId(s.key);
+            return `
+        <div class="spend-row" id="sr-${id}" onclick="toggleSpendDetail('${escapeHtml(s.key)}')" onmouseenter="showSpendSliceInfo('${escapeHtml(s.key)}')">
+          <div class="spend-icon">${s.icon}</div>
+          <div class="spend-info">
+            <div class="spend-name"><span>${s.key}</span><span class="pct">${s.pct}%</span></div>
+            <div class="spend-bar-bg"><div class="spend-bar-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
+          </div>
+          <div class="spend-val">${fmt(s.val)}</div>
+          <span class="spend-caret">▼</span>
+        </div>
+        <div class="spend-detail" id="sd-${id}">${details || "<div style='font-size:.7rem;color:var(--ink-3);padding:4px 0'>Tidak ada transaksi</div>"}</div>`;
+          })
+          .join("");
+      }
+      function toggleSpendDetail(key, forceOpen = false) {
+        const id = safeDomId(key);
+        const detail = document.getElementById("sd-" + id);
+        const row = document.getElementById("sr-" + id);
+        if (!detail || !row) return;
+        const willOpen = forceOpen
+          ? true
+          : !detail.classList.contains("visible");
+        detail.classList.toggle("visible", willOpen);
+        row.classList.toggle("open", willOpen);
+      }
+
+      /* ---------------- PIGGY render ---------------- */
+      function hitungCelengan() {
+        const allBulan = [
+          ...new Set(data.map((d) => d.bulan || bulanOf(d.tanggal))),
+        ]
+          .filter(Boolean)
+          .sort();
+        const detail = [];
+
+        // PENTING: kelompok Kebutuhan (k) dan Jajan/Keinginan (w) SEKARANG
+        // auto-carry ke bulan berikutnya (lihat
+        // syncCarryoversUpToCurrent/AUTO_CARRY_GROUPS), jadi keduanya BUKAN
+        // bagian dari Celengan lagi. Celengan cuma berisi 4 kelompok yang
+        // TIDAK auto-carry: Tabungan, Dana Darurat, Healing & Hiburan, dan
+        // Tabung Emas. Bank/cash tiap bulan untuk 4 kelompok ini murni
+        // "bersih bulan itu sendiri" (alokasi bulan itu - transfer -
+        // pemakaian, termasuk pemakaian lewat "Pakai Saldo Celengan").
+        // Karena bulan-bulan itu independen satu sama lain, akumulasi
+        // Celengan yang "beneran masih ada" HARUS dijumlah dari SEMUA bulan
+        // yang tercatat, bukan cuma ambil bulan terakhir — supaya saldo
+        // lama tidak hilang.
+        const rawTotal = {
+          t: { bank: 0, cash: 0 },
+          c: { bank: 0, cash: 0 },
+          h: { bank: 0, cash: 0 },
+          e: { bank: 0, cash: 0 },
+        };
+
+        for (const bln of allBulan) {
+          const rows = rowsForMonth(bln);
+          const hasFinancialData = rows.some(
+            (r) =>
+              r.tipe === "pemasukan" ||
+              r.tipe === "pemasukan_tetap" ||
+              r.tipe === "saldo_bulan_lalu",
+          );
+          if (!hasFinancialData) continue;
+
+          const stats = {
+            t: walletStatsForGroup(rows, "t"),
+            c: walletStatsForGroup(rows, "c"),
+            h: walletStatsForGroup(rows, "h"),
+            e: walletStatsForGroup(rows, "e"),
+          };
+
+          ["t", "c", "h", "e"].forEach((g) => {
+            rawTotal[g].bank += stats[g].bank;
+            rawTotal[g].cash += stats[g].cash;
+          });
+
+          const sisaT = Math.max(0, stats.t.bank) + Math.max(0, stats.t.cash);
+          const sisaC = Math.max(0, stats.c.bank) + Math.max(0, stats.c.cash);
+          const sisaH = Math.max(0, stats.h.bank) + Math.max(0, stats.h.cash);
+          const sisaE = Math.max(0, stats.e.bank) + Math.max(0, stats.e.cash);
+
+          detail.push({
+            bln,
+            aT: stats.t.budget,
+            aC: stats.c.budget,
+            aH: stats.h.budget,
+            aE: stats.e.budget,
+            outT: stats.t.outBank + stats.t.outCash,
+            outC: stats.c.outBank + stats.c.outCash,
+            outH: stats.h.outBank + stats.h.outCash,
+            outE: stats.e.outBank + stats.e.outCash,
+            sisaT,
+            sisaC,
+            sisaH,
+            sisaE,
+            bankT: Math.max(0, stats.t.bank),
+            cashT: Math.max(0, stats.t.cash),
+            bankC: Math.max(0, stats.c.bank),
+            cashC: Math.max(0, stats.c.cash),
+            bankH: Math.max(0, stats.h.bank),
+            cashH: Math.max(0, stats.h.cash),
+            bankE: Math.max(0, stats.e.bank),
+            cashE: Math.max(0, stats.e.cash),
+          });
+        }
+
+        const totalBankT = Math.max(0, rawTotal.t.bank);
+        const totalCashT = Math.max(0, rawTotal.t.cash);
+        const totalBankC = Math.max(0, rawTotal.c.bank);
+        const totalCashC = Math.max(0, rawTotal.c.cash);
+        const totalBankH = Math.max(0, rawTotal.h.bank);
+        const totalCashH = Math.max(0, rawTotal.h.cash);
+        const totalBankE = Math.max(0, rawTotal.e.bank);
+        const totalCashE = Math.max(0, rawTotal.e.cash);
+
+        const totalT = totalBankT + totalCashT;
+        const totalC = totalBankC + totalCashC;
+        const totalH = totalBankH + totalCashH;
+        const totalE = totalBankE + totalCashE;
+
+        return {
+          totalT,
+          totalC,
+          totalH,
+          totalE,
+          totalBankT,
+          totalCashT,
+          totalBankC,
+          totalCashC,
+          totalBankH,
+          totalCashH,
+          totalBankE,
+          totalCashE,
+          detail,
+        };
+      }
+
+      function celenganBucketTotal(cel, group, bucket) {
+        const map = {
+          t: bucket === "cash" ? cel.totalCashT : cel.totalBankT,
+          c: bucket === "cash" ? cel.totalCashC : cel.totalBankC,
+          h: bucket === "cash" ? cel.totalCashH : cel.totalBankH,
+          e: bucket === "cash" ? cel.totalCashE : cel.totalBankE,
+        };
+        return map[group] || 0;
+      }
+
+      function renderPiggy() {
+        const { totalT, totalC, totalH, totalE, detail } = hitungCelengan();
+        document.getElementById("celenganGrid").innerHTML = `
+      <div class="cel-box t" onclick="toggleCelTable();showToast('🏦 Sisa Tabungan saat ini: ${fmt(totalT)}')"><div class="cel-icon">🏦</div><div><div class="cel-label">Sisa Tabungan</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalT)}</div></div></div>
+      <div class="cel-box c" onclick="toggleCelTable();showToast('🛡️ Dana Darurat saat ini: ${fmt(totalC)}')"><div class="cel-icon">🛡️</div><div><div class="cel-label">Dana Darurat</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalC)}</div></div></div>
+      <div class="cel-box h" onclick="toggleCelTable();showToast('🎟️ Healing & Hiburan saat ini: ${fmt(totalH)}')"><div class="cel-icon">🎟️</div><div><div class="cel-label">Healing & Hiburan</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalH)}</div></div></div>
+      <div class="cel-box e" onclick="toggleCelTable();showToast('🪙 Tabung Emas saat ini: ${fmt(totalE)}')"><div class="cel-icon">🪙</div><div><div class="cel-label">Tabung Emas</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalE)}</div></div></div>`;
+        const tbody = document.getElementById("celenganTbody"),
+          empty = document.getElementById("celenganEmpty");
+        if (!detail.length) {
+          tbody.innerHTML = "";
+          empty.style.display = "";
+        } else {
+          empty.style.display = "none";
+          tbody.innerHTML = detail
+            .map(
+              (d) => `
+        <tr>
+          <td style="color:var(--ink-3); white-space:nowrap;">${monthLbl(d.bln)}</td>
+          <td style="white-space:nowrap; color:${d.sisaT > 0 ? "var(--mint-700)" : "var(--ink-3)"}">${d.sisaT > 0 ? "+" + fmt(d.sisaT) : fmt(0)}<span style="font-size:.6rem;color:var(--ink-3)"> (🏦 ${fmt(d.bankT)} · 💵 ${fmt(d.cashT)}${d.outT > 0 ? ` · terpakai ${fmt(d.outT)}` : ""})</span></td>
+          <td style="white-space:nowrap; color:${d.sisaC > 0 ? "#c98a1c" : "var(--ink-3)"}">${d.sisaC > 0 ? "+" + fmt(d.sisaC) : fmt(0)}<span style="font-size:.6rem;color:var(--ink-3)"> (🏦 ${fmt(d.bankC)} · 💵 ${fmt(d.cashC)}${d.outC > 0 ? ` · terpakai ${fmt(d.outC)}` : ""})</span></td>
+          <td style="white-space:nowrap; color:${d.sisaH > 0 ? "#7b5fc4" : "var(--ink-3)"}">${d.sisaH > 0 ? "+" + fmt(d.sisaH) : fmt(0)}<span style="font-size:.6rem;color:var(--ink-3)"> (🏦 ${fmt(d.bankH)} · 💵 ${fmt(d.cashH)}${d.outH > 0 ? ` · terpakai ${fmt(d.outH)}` : ""})</span></td>
+          <td style="white-space:nowrap; color:${d.sisaE > 0 ? "#b7791f" : "var(--ink-3)"}">${d.sisaE > 0 ? "+" + fmt(d.sisaE) : fmt(0)}<span style="font-size:.6rem;color:var(--ink-3)"> (🏦 ${fmt(d.bankE)} · 💵 ${fmt(d.cashE)}${d.outE > 0 ? ` · terpakai ${fmt(d.outE)}` : ""})</span></td>
+        </tr>`,
+            )
+            .join("");
+        }
+      }
+      function toggleCelTable() {
+        const wrap = document.getElementById("celTableWrap"),
+          caret = document.getElementById("celToggleCaret"),
+          label = document.getElementById("celToggleLabel");
+        const isOpen = wrap.classList.contains("open");
+        wrap.classList.toggle("open", !isOpen);
+        caret.classList.toggle("open", !isOpen);
+        label.textContent = isOpen
+          ? "Lihat detail per bulan"
+          : "Sembunyikan detail";
+      }
+
+      /* ---------------- HISTORY render ---------------- */
+      function renderHistory() {
+        const rows = rowsForMonth(currentMonth);
+        const tbody = document.getElementById("transTbody"),
+          empty = document.getElementById("emptyHistory");
+        if (!rows.length) {
+          tbody.innerHTML = "";
+          empty.style.display = "";
+          return;
+        }
+        empty.style.display = "none";
+        tbody.innerHTML = [...rows]
+          .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""))
+          .map((r) => {
+            const isSBL = r.tipe === "pemasukan_tetap";
+            const isCarry = r.tipe === "saldo_bulan_lalu";
+            const isTransfer = r.tipe === "transfer_saldo";
+            const k = KATEGORI.find(
+              (x) => x.key === normalizeKategori(r.kategori),
+            );
+            const group =
+              r.budgetGroup || groupOfKategori(r.kategori || "Kebutuhan");
+
+            let badgeLabel = "🌸 Pengeluaran";
+            let badgeClass = "pengeluaran";
+            let amtClass = "neg";
+            let sign = "-";
+            let methodInfo = metodeLabel(r.metode);
+
+            if (isTransfer) {
+              badgeLabel = "🔄 Pindah Saldo";
+              badgeClass = "transfer_saldo";
+              amtClass = "pos";
+              sign = "↔ ";
+              const ep = transferEndpoints(r);
+              const fromBudget =
+                BUDGET_GROUPS[ep?.fromGroup]?.label || "Budget";
+              const toBudget = BUDGET_GROUPS[ep?.toGroup]?.label || fromBudget;
+              const fromWallet =
+                ep?.fromBucket === "cash" ? "💵 Cash" : "🏦 Bank";
+              const toWallet = ep?.toBucket === "cash" ? "💵 Cash" : "🏦 Bank";
+              methodInfo =
+                fromBudget === toBudget
+                  ? `${fromWallet} → ${toWallet}`
+                  : `${fromWallet} ${fromBudget} → ${toWallet} ${toBudget}`;
+            } else if (isCarry) {
+              badgeLabel = "💛 Saldo Bulan Lalu";
+              badgeClass = "saldo_bulan_lalu";
+              amtClass = "carry";
+              sign = "+";
+              methodInfo =
+                (r.carryBucket || "bank") === "cash"
+                  ? "💵 Tetap di bagian Cash"
+                  : "🏦 Tetap di bagian Bank";
+            } else if (isSBL) {
+              badgeLabel = "💙 Pemasukan Tetap";
+              badgeClass = "pemasukan_tetap";
+              amtClass = "sbl";
+              sign = "+";
+              methodInfo = "🏦 Masuk ke bagian Bank";
+            } else if (r.tipe === "pemasukan") {
+              badgeLabel = "💜 Pemasukan";
+              badgeClass = "pemasukan";
+              amtClass = "pos";
+              sign = "+";
+              methodInfo = "🏦 Dialokasikan ke bagian Bank";
+            } else if (r.tipe === "pengeluaran" && r.dariCelengan) {
+              badgeLabel = "🐷 Pakai Celengan";
+              badgeClass = "pengeluaran_celengan";
+              amtClass = "neg";
+              sign = "-";
+              methodInfo = `${metodeLabel(r.metode)} · dari saldo Celengan`;
+            }
+
+            const categoryInfo = isTransfer
+              ? `${BUDGET_GROUPS[group]?.icon || "📦"} ${BUDGET_GROUPS[group]?.label || r.kategori}`
+              : k
+                ? `${k.icon} ${k.key}`
+                : "";
+
+            return `<tr>
+              <td style="color:var(--ink-3);white-space:nowrap;font-size:.7rem">${fmtDate(r.tanggal)}</td>
+              <td>${escapeHtml(r.ket)}</td>
+              <td><span class="badge ${badgeClass}">${badgeLabel}</span>${categoryInfo ? `<div style="font-size:.62rem;color:var(--ink-3);margin-top:3px">${categoryInfo}</div>` : ""}</td>
+              <td style="font-size:.66rem;color:var(--ink-2);min-width:105px">${methodInfo}</td>
+              <td class="amount ${amtClass}" style="white-space:nowrap">${sign}${fmt(r.jml)}</td>
+              <td>${r.auto ? "" : `<button class="btn-del" onclick="hapusTransaksi(${r.id})">✕</button>`}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+
+      /* ---------------- toast ---------------- */
+      let toastT;
+      function showToast(msg, isErr) {
+        const t = document.getElementById("toast");
+        clearTimeout(toastT);
+        t.textContent = msg;
+        t.classList.toggle("err", !!isErr);
+        t.classList.add("show");
+        toastT = setTimeout(() => t.classList.remove("show"), 2400);
+      }
+
+      /* ---------------- init ---------------- */
+      async function init() {
+        buildKatSelect();
+        ensureMonthOptions();
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+        document.getElementById("loadingOv").style.display = "none";
+        handleAuthActionLinks();
+        handleGoogleRedirectResult();
+        window.addEventListener("resize", () => {
+          if (
+            document
+              .getElementById("screen-report")
+              .classList.contains("active")
+          )
+            drawBar();
+        });
+      }
+      window.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
+</html>
