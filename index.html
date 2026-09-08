@@ -93,11 +93,10 @@
       /* ---------- Topbar ---------- */
       .topbar {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         align-items: center;
-        gap: 10px;
-        row-gap: 10px;
-        padding: 18px 16px 14px;
+        gap: 8px;
+        padding: 16px 14px;
         background: linear-gradient(
           160deg,
           var(--mint-700),
@@ -109,20 +108,20 @@
       .brand {
         display: flex;
         align-items: center;
-        gap: 9px;
+        gap: 8px;
         flex: 1 1 auto;
-        min-width: 0;
+        min-width: 34px;
         overflow: hidden;
       }
       .brand-mark {
-        width: 34px;
-        height: 34px;
-        border-radius: 11px;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
         background: rgba(255, 255, 255, 0.18);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.15rem;
+        font-size: 1.05rem;
         flex-shrink: 0;
       }
       .brand > div {
@@ -131,7 +130,7 @@
       .brand-text {
         font-family: "Baloo 2", sans-serif;
         font-weight: 700;
-        font-size: 1.12rem;
+        font-size: 1rem;
         letter-spacing: 0.2px;
         white-space: nowrap;
         overflow: hidden;
@@ -149,9 +148,7 @@
       .month-pill {
         display: flex;
         gap: 6px;
-        flex: 1 1 100%;
-        order: 5;
-        justify-content: flex-end;
+        flex: 0 1 auto;
         min-width: 0;
       }
       .month-pill select {
@@ -161,23 +158,23 @@
         background: rgba(255, 255, 255, 0.2);
         color: var(--white);
         font-weight: 700;
-        font-size: 0.78rem;
-        padding: 8px 26px 8px 12px;
+        font-size: 0.72rem;
+        padding: 7px 22px 7px 10px;
         border-radius: 99px;
         font-family: inherit;
         cursor: pointer;
         background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0L5 6L10 0Z' fill='white'/></svg>");
         background-repeat: no-repeat;
-        background-position: right 10px center;
+        background-position: right 8px center;
         min-width: 0;
-        max-width: 46vw;
+        max-width: 30vw;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
       .month-pill select#yearPicker {
-        padding-right: 24px;
-        max-width: 30vw;
+        padding-right: 20px;
+        max-width: 20vw;
       }
       .month-pill select option {
         color: #000;
@@ -2445,18 +2442,10 @@
                 </button>
               </div>
               <div class="pw-hint">
-                <div class="pw-hint-item" id="regHintLen">
-                  Minimal 8 karakter
-                </div>
-                <div class="pw-hint-item" id="regHintUpper">
-                  Ada huruf besar (A-Z)
-                </div>
-                <div class="pw-hint-item" id="regHintLower">
-                  Ada huruf kecil (a-z)
-                </div>
-                <div class="pw-hint-item" id="regHintSym">
-                  Ada angka atau simbol
-                </div>
+                <div class="pw-hint-item" id="regHintLen">Minimal 8 karakter</div>
+                <div class="pw-hint-item" id="regHintUpper">Ada huruf besar (A-Z)</div>
+                <div class="pw-hint-item" id="regHintLower">Ada huruf kecil (a-z)</div>
+                <div class="pw-hint-item" id="regHintSym">Ada angka atau simbol</div>
               </div>
             </div>
             <div class="field">
@@ -2478,9 +2467,7 @@
                   👁️
                 </button>
               </div>
-              <div class="pw-mismatch" id="regConfirmNote">
-                Password belum sama persis
-              </div>
+              <div class="pw-mismatch" id="regConfirmNote">Password belum sama persis</div>
             </div>
             <button
               class="btn-auth-submit daftar"
@@ -2624,18 +2611,10 @@
                 </button>
               </div>
               <div class="pw-hint">
-                <div class="pw-hint-item" id="resetHintLen">
-                  Minimal 8 karakter
-                </div>
-                <div class="pw-hint-item" id="resetHintUpper">
-                  Ada huruf besar (A-Z)
-                </div>
-                <div class="pw-hint-item" id="resetHintLower">
-                  Ada huruf kecil (a-z)
-                </div>
-                <div class="pw-hint-item" id="resetHintSym">
-                  Ada angka atau simbol
-                </div>
+                <div class="pw-hint-item" id="resetHintLen">Minimal 8 karakter</div>
+                <div class="pw-hint-item" id="resetHintUpper">Ada huruf besar (A-Z)</div>
+                <div class="pw-hint-item" id="resetHintLower">Ada huruf kecil (a-z)</div>
+                <div class="pw-hint-item" id="resetHintSym">Ada angka atau simbol</div>
               </div>
             </div>
             <div class="field">
@@ -2657,9 +2636,7 @@
                   👁️
                 </button>
               </div>
-              <div class="pw-mismatch" id="resetConfirmNote">
-                Password belum sama persis
-              </div>
+              <div class="pw-mismatch" id="resetConfirmNote">Password belum sama persis</div>
             </div>
             <button
               class="btn-auth-submit masuk"
