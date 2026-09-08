@@ -2004,7 +2004,7 @@
             style="margin-bottom: 14px"
             onclick="openCelenganModal()"
           >
-            🐷 Pakai Saldo Celengan
+            💰 Pakai Saldo Celengan
           </button>
 
           <button
@@ -2320,8 +2320,9 @@
             <div
               style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
             >
-              Saldo akan ditambahkan ke alokasi bujet bulan ini, jadi bisa
-              dipakai lewat menu Pengeluaran biasa.
+              Saldo akan ditambahkan ke alokasi bujet bulan ini — bisa
+              Kebutuhan, Jajan/Keinginan, atau bagian Celengan lain (Tabungan,
+              Dana Darurat, Healing & Hiburan, Tabung Emas).
             </div>
           </div>
 
@@ -4122,12 +4123,7 @@
       }
 
       function monthlyBudgetGroupOptions() {
-        return ["k", "w"]
-          .map(
-            (key) =>
-              `<option value="${key}">${BUDGET_GROUPS[key].icon} ${BUDGET_GROUPS[key].label}</option>`,
-          )
-          .join("");
+        return budgetGroupOptions();
       }
 
       function setCelMode(mode) {
@@ -4151,8 +4147,10 @@
         if (mode === "pindah") {
           celHint.innerHTML =
             "🔄 Saldo <b>Celengan</b> dipindahkan jadi <b>alokasi bujet bulan ini</b> " +
-            "(Kebutuhan / Jajan-Keinginan). Perpindahan ini <b>bukan pengeluaran</b>, " +
-            "tapi tetap mengurangi saldo Celengan yang bersangkutan.";
+            "— bisa ke Kebutuhan, Jajan/Keinginan, atau bagian Celengan lain " +
+            "(Tabungan, Dana Darurat, Healing & Hiburan, Tabung Emas). " +
+            "Perpindahan ini <b>bukan pengeluaran</b>, tapi tetap mengurangi " +
+            "saldo Celengan asal.";
           metodeLabelEl.textContent = "Lokasi Saldo";
           metodeHintEl.textContent =
             "Cash Celengan pindah jadi saldo Cash alokasi. Bank Celengan pindah jadi saldo Bank alokasi.";
@@ -4160,10 +4158,10 @@
             `<option value="cash">💵 Cash</option>` +
             `<option value="bank">🏦 Bank</option>`;
           metodeSel.value = "bank";
-          submitLabel.textContent = "Pindahkan ke Alokasi";
+          submitLabel.textContent = "Pindahkan ke Alokasi Anggaran";
         } else {
           celHint.innerHTML =
-            "🐷 Uang ini diambil dari <b>saldo Celengan</b> (akumulasi semua " +
+            "💰 Uang ini diambil dari <b>saldo Celengan</b> (akumulasi semua " +
             "bulan yang tercatat), <b>bukan</b> dari alokasi anggaran bulan " +
             "berjalan. Transaksi ini tetap tercatat sebagai <b>pengeluaran</b> di " +
             "riwayat & laporan bulan ini.";
@@ -5638,7 +5636,7 @@
                   ? `${fromWallet} → ${toWallet}`
                   : `${fromWallet} ${fromBudget} → ${toWallet} ${toBudget}`;
               if (r.dariCelengan) {
-                badgeLabel = "🐷 Pindah dari Celengan";
+                badgeLabel = "💰 Pindah dari Celengan";
                 badgeClass = "transfer_celengan";
                 methodInfo = `${fromWallet} ${fromBudget} (Celengan) → ${toWallet} ${toBudget}`;
               }
@@ -5664,7 +5662,7 @@
               sign = "+";
               methodInfo = "🏦 Dialokasikan ke bagian Bank";
             } else if (r.tipe === "pengeluaran" && r.dariCelengan) {
-              badgeLabel = "🐷 Pakai Celengan";
+              badgeLabel = "💰 Pakai Celengan";
               badgeClass = "pengeluaran_celengan";
               amtClass = "neg";
               sign = "-";
