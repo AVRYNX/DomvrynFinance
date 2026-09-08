@@ -863,6 +863,10 @@
         background: #fdeedd;
         color: #b7791f;
       }
+      .badge.transfer_celengan {
+        background: #eaf7f0;
+        color: #2f9e63;
+      }
       .amount {
         font-family: "DM Mono", monospace;
         font-weight: 600;
@@ -2270,8 +2274,29 @@
             </button>
           </div>
 
+          <div class="field">
+            <label>Mau Diapakan?</label>
+            <div class="type-toggle">
+              <div
+                class="type-opt sel-out"
+                id="celOptOut"
+                onclick="setCelMode('pengeluaran')"
+              >
+                🐷 Pengeluaran Langsung
+              </div>
+              <div
+                class="type-opt"
+                id="celOptMove"
+                onclick="setCelMode('pindah')"
+              >
+                🔄 Pindah ke Alokasi
+              </div>
+            </div>
+          </div>
+
           <div
             class="hint-sbl"
+            id="celHint"
             style="
               background: var(--gold-soft);
               border-color: #ffe1ad;
@@ -2289,13 +2314,25 @@
             <select id="fCelKat" onchange="updateCelenganSaldoInfo()"></select>
           </div>
 
+          <div class="field" id="fieldCelTarget" style="display: none">
+            <label>Pindahkan Ke</label>
+            <select id="fCelTarget"></select>
+            <div
+              style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
+            >
+              Saldo akan ditambahkan ke alokasi bujet bulan ini, jadi bisa
+              dipakai lewat menu Pengeluaran biasa.
+            </div>
+          </div>
+
           <div class="field">
-            <label>Metode Pembayaran</label>
+            <label id="fCelMetodeLabel">Metode Pembayaran</label>
             <select
               id="fCelMetode"
               onchange="updateCelenganSaldoInfo()"
             ></select>
             <div
+              id="fCelMetodeHint"
               style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
             >
               Cash mengurangi saldo Celengan Cash. Semua metode non-tunai
@@ -2338,7 +2375,11 @@
             />
           </div>
 
-          <button class="btn-submit" onclick="simpanCelenganTransaksi()">
+          <button
+            class="btn-submit"
+            id="celSubmitLabel"
+            onclick="simpanCelenganTransaksi()"
+          >
             Pakai Saldo Celengan
           </button>
         </div>
@@ -4068,6 +4109,8 @@
       }
 
       /* ---------------- Pakai Saldo Celengan modal ---------------- */
+      let celMode = "pengeluaran";
+
       function celenganCategoryOptions() {
         return Object.entries(BUDGET_GROUPS)
           .filter(([key]) => key !== "k" && key !== "w")
@@ -4078,18 +4121,75 @@
           .join("");
       }
 
+      function monthlyBudgetGroupOptions() {
+        return ["k", "w"]
+          .map(
+            (key) =>
+              `<option value="${key}">${BUDGET_GROUPS[key].icon} ${BUDGET_GROUPS[key].label}</option>`,
+          )
+          .join("");
+      }
+
+      function setCelMode(mode) {
+        celMode = mode;
+        document
+          .getElementById("celOptOut")
+          .classList.toggle("sel-out", mode === "pengeluaran");
+        document
+          .getElementById("celOptMove")
+          .classList.toggle("sel-transfer", mode === "pindah");
+
+        const fieldCelTarget = document.getElementById("fieldCelTarget");
+        const celHint = document.getElementById("celHint");
+        const metodeLabelEl = document.getElementById("fCelMetodeLabel");
+        const metodeHintEl = document.getElementById("fCelMetodeHint");
+        const metodeSel = document.getElementById("fCelMetode");
+        const submitLabel = document.getElementById("celSubmitLabel");
+
+        fieldCelTarget.style.display = mode === "pindah" ? "" : "none";
+
+        if (mode === "pindah") {
+          celHint.innerHTML =
+            "🔄 Saldo <b>Celengan</b> dipindahkan jadi <b>alokasi bujet bulan ini</b> " +
+            "(Kebutuhan / Jajan-Keinginan). Perpindahan ini <b>bukan pengeluaran</b>, " +
+            "tapi tetap mengurangi saldo Celengan yang bersangkutan.";
+          metodeLabelEl.textContent = "Lokasi Saldo";
+          metodeHintEl.textContent =
+            "Cash Celengan pindah jadi saldo Cash alokasi. Bank Celengan pindah jadi saldo Bank alokasi.";
+          metodeSel.innerHTML =
+            `<option value="cash">💵 Cash</option>` +
+            `<option value="bank">🏦 Bank</option>`;
+          metodeSel.value = "bank";
+          submitLabel.textContent = "Pindahkan ke Alokasi";
+        } else {
+          celHint.innerHTML =
+            "🐷 Uang ini diambil dari <b>saldo Celengan</b> (akumulasi semua " +
+            "bulan yang tercatat), <b>bukan</b> dari alokasi anggaran bulan " +
+            "berjalan. Transaksi ini tetap tercatat sebagai <b>pengeluaran</b> di " +
+            "riwayat & laporan bulan ini.";
+          metodeLabelEl.textContent = "Metode Pembayaran";
+          metodeHintEl.textContent =
+            "Cash mengurangi saldo Celengan Cash. Semua metode non-tunai mengurangi saldo Celengan Bank.";
+          metodeSel.innerHTML = METODE_PEMBAYARAN.map(
+            (m) => `<option value="${m.key}">${m.label}</option>`,
+          ).join("");
+          metodeSel.value = "qris";
+          submitLabel.textContent = "Pakai Saldo Celengan";
+        }
+        updateCelenganSaldoInfo();
+      }
+
       function openCelenganModal() {
         if (!requireAuth()) return;
         document.getElementById("fCelKat").innerHTML =
           celenganCategoryOptions();
-        document.getElementById("fCelMetode").innerHTML = METODE_PEMBAYARAN.map(
-          (m) => `<option value="${m.key}">${m.label}</option>`,
-        ).join("");
+        document.getElementById("fCelTarget").innerHTML =
+          monthlyBudgetGroupOptions();
+        document.getElementById("fCelTarget").value = "k";
         document.getElementById("fCelTanggal").value = todayStr();
         document.getElementById("fCelKet").value = "";
         document.getElementById("fCelJumlah").value = "";
-        document.getElementById("fCelMetode").value = "qris";
-        updateCelenganSaldoInfo();
+        setCelMode("pengeluaran");
         document.getElementById("modalCelengan").classList.add("show");
       }
 
@@ -4121,10 +4221,6 @@
           showToast("⚠️ Lengkapi tanggal dan jumlah!", true);
           return;
         }
-        if (!ket) {
-          showToast("⚠️ Isi keterangan pemakaian saldo celengan!", true);
-          return;
-        }
 
         const cel = hitungCelengan();
         const available = celenganBucketTotal(cel, group, bucket);
@@ -4137,17 +4233,48 @@
         }
 
         const ym = bulanOf(tanggal);
-        data.push({
-          id: Date.now(),
-          tanggal,
-          bulan: ym,
-          tipe: "pengeluaran",
-          ket,
-          jml,
-          kategori: BUDGET_GROUPS[group].label,
-          metode,
-          dariCelengan: true,
-        });
+
+        if (celMode === "pindah") {
+          const target = document.getElementById("fCelTarget").value;
+
+          if (!ket) {
+            ket = `Pindah saldo Celengan ${BUDGET_GROUPS[group].label} → ${BUDGET_GROUPS[target].label}`;
+          }
+
+          data.push({
+            id: Date.now(),
+            tanggal,
+            bulan: ym,
+            tipe: "transfer_saldo",
+            ket,
+            jml,
+            kategori: BUDGET_GROUPS[target].label,
+            budgetGroup: group,
+            arah: `${bucket}_${bucket}`,
+            transferFromGroup: group,
+            transferToGroup: target,
+            transferFromBucket: bucket,
+            transferToBucket: bucket,
+            dariCelengan: true,
+          });
+        } else {
+          if (!ket) {
+            showToast("⚠️ Isi keterangan pemakaian saldo celengan!", true);
+            return;
+          }
+
+          data.push({
+            id: Date.now(),
+            tanggal,
+            bulan: ym,
+            tipe: "pengeluaran",
+            ket,
+            jml,
+            kategori: BUDGET_GROUPS[group].label,
+            metode,
+            dariCelengan: true,
+          });
+        }
 
         await saveData();
         await syncCarryoversUpToCurrent();
@@ -4160,7 +4287,11 @@
         renderPiggy();
         renderHistory();
         closeCelenganModal();
-        showToast("✓ Saldo Celengan terpakai & tercatat sebagai pengeluaran");
+        showToast(
+          celMode === "pindah"
+            ? "✓ Saldo Celengan dipindahkan ke alokasi bulan ini"
+            : "✓ Saldo Celengan terpakai & tercatat sebagai pengeluaran",
+        );
       }
 
       function syncTransferModeUI() {
@@ -5506,6 +5637,11 @@
                 fromBudget === toBudget
                   ? `${fromWallet} → ${toWallet}`
                   : `${fromWallet} ${fromBudget} → ${toWallet} ${toBudget}`;
+              if (r.dariCelengan) {
+                badgeLabel = "🐷 Pindah dari Celengan";
+                badgeClass = "transfer_celengan";
+                methodInfo = `${fromWallet} ${fromBudget} (Celengan) → ${toWallet} ${toBudget}`;
+              }
             } else if (isCarry) {
               badgeLabel = "💛 Saldo Bulan Lalu";
               badgeClass = "saldo_bulan_lalu";
