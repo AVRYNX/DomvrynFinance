@@ -4238,6 +4238,7 @@
 
         const katSel = document.getElementById("fKat");
         const katLabel = document.getElementById("fKatLabel");
+        const fieldKat = document.getElementById("fieldKat");
         const hintTransfer = document.getElementById("hintTransfer");
         const fieldMetode = document.getElementById("fieldMetode");
         const fieldArah = document.getElementById("fieldArah");
@@ -4251,6 +4252,7 @@
         const submit = document.getElementById("submitLabel");
 
         hintTransfer.style.display = t === "transfer_saldo" ? "" : "none";
+        fieldKat.style.display = t === "pemasukan" ? "none" : "";
         fieldMetode.style.display = t === "pengeluaran" ? "" : "none";
         fieldTujuanBudget.style.display = t === "transfer_saldo" ? "" : "none";
         fieldAlokasiPemasukan.style.display = t === "pemasukan" ? "" : "none";
