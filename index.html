@@ -2079,7 +2079,7 @@
                     <th>🏦 Tabungan</th>
                     <th>🛡️ Dana Darurat</th>
                     <th>🎉 Healing & Hiburan</th>
-                    <th>🪙 Tabung Emas</th>
+                    <th>🪙 Investasi</th>
                   </tr>
                 </thead>
                 <tbody id="celenganTbody"></tbody>
@@ -2404,7 +2404,7 @@
             >
               Saldo akan ditambahkan ke alokasi bujet bulan ini — bisa
               Kebutuhan, Jajan/Keinginan, atau bagian Celengan lain (Tabungan,
-              Dana Darurat, Healing & Hiburan, Tabung Emas).
+              Dana Darurat, Healing & Hiburan, Investasi).
             </div>
           </div>
 
@@ -3128,7 +3128,7 @@
           desc: "Simpanan untuk kebutuhan mendadak, darurat, atau pengeluaran tak terduga.",
         },
         {
-          key: "Tabung Emas",
+          key: "Investasi",
           icon: "🪙",
           color: "#d9a441",
           desc: "Alokasi khusus untuk membeli atau menabung emas secara bertahap.",
@@ -3150,7 +3150,7 @@
         "Healing/DanaBebas",
         "Healing",
       ];
-      const GROUP_EMAS = ["Tabung Emas", "Emas", "Tabungan Emas"];
+      const GROUP_EMAS = ["Investasi", "Emas", "Tabungan Emas"];
 
       const BUDGET_GROUPS = {
         k: { label: "Kebutuhan", icon: "🧾" },
@@ -3158,7 +3158,7 @@
         t: { label: "Tabungan", icon: "🏦" },
         c: { label: "Dana Darurat", icon: "🛡️" },
         h: { label: "Healing & Hiburan", icon: "🎟️" },
-        e: { label: "Tabung Emas", icon: "🪙" },
+        e: { label: "Investasi", icon: "🪙" },
       };
 
       const METODE_PEMBAYARAN = [
@@ -3178,7 +3178,7 @@
         if (GROUP_TABUNGAN.includes(kat)) return "Tabungan";
         if (GROUP_CADANGAN.includes(kat)) return "Dana Darurat";
         if (GROUP_HEALING.includes(kat)) return "Healing & Hiburan";
-        if (GROUP_EMAS.includes(kat)) return "Tabung Emas";
+        if (GROUP_EMAS.includes(kat)) return "Investasi";
         return kat || "Lainnya";
       }
 
@@ -3188,7 +3188,7 @@
         if (cleanKat === "Tabungan") return "t";
         if (cleanKat === "Dana Darurat") return "c";
         if (cleanKat === "Healing & Hiburan") return "h";
-        if (cleanKat === "Tabung Emas") return "e";
+        if (cleanKat === "Investasi") return "e";
         return "k";
       }
 
@@ -4420,7 +4420,7 @@
           celHint.innerHTML =
             "🔄 Saldo <b>Celengan</b> dipindahkan jadi <b>alokasi bujet bulan ini</b> " +
             "— bisa ke Kebutuhan, Jajan/Keinginan, atau bagian Celengan lain " +
-            "(Tabungan, Dana Darurat, Healing & Hiburan, Tabung Emas). " +
+            "(Tabungan, Dana Darurat, Healing & Hiburan, Investasi). " +
             "Perpindahan ini <b>bukan pengeluaran</b>, tapi tetap mengurangi " +
             "saldo Celengan asal.";
           metodeLabelEl.textContent = "Lokasi Saldo";
@@ -5251,7 +5251,7 @@
       // PENTING: mulai sekarang, carry-over otomatis sisa bulan sebelumnya
       // ke alokasi bulan berikutnya HANYA berlaku untuk kelompok "Kebutuhan"
       // (k) dan "Jajan/Keinginan" (w). Kelompok Tabungan, Dana Darurat,
-      // Healing & Hiburan, dan Tabung Emas TIDAK auto-carry jadi alokasi
+      // Healing & Hiburan, dan Investasi TIDAK auto-carry jadi alokasi
       // bulan depan — sisanya berhenti sebagai saldo "Celengan" (lihat
       // hitungCelengan()) dan cuma bisa dipakai lewat tombol
       // "Pakai Saldo Celengan" yang terpisah dari tambah transaksi biasa.
@@ -5493,8 +5493,8 @@
           {
             key: "e",
             icon: "🪙",
-            name: "Tabung Emas",
-            l: "Tabung Emas",
+            name: "Investasi",
+            l: "Investasi",
             v: e,
             c: "#d9a441",
             pct: 5,
@@ -6226,7 +6226,7 @@
         // syncCarryoversUpToCurrent/AUTO_CARRY_GROUPS), jadi keduanya BUKAN
         // bagian dari Celengan lagi. Celengan cuma berisi 4 kelompok yang
         // TIDAK auto-carry: Tabungan, Dana Darurat, Healing & Hiburan, dan
-        // Tabung Emas. Bank/cash tiap bulan untuk 4 kelompok ini murni
+        // Investasi. Bank/cash tiap bulan untuk 4 kelompok ini murni
         // "bersih bulan itu sendiri" (alokasi bulan itu - transfer -
         // pemakaian, termasuk pemakaian lewat "Pakai Saldo Celengan").
         // Karena bulan-bulan itu independen satu sama lain, akumulasi
@@ -6339,7 +6339,7 @@
       <div class="cel-box t" onclick="toggleCelTable();showToast('🏦 Sisa Tabungan saat ini: ${fmt(totalT)}')"><div class="cel-icon">🏦</div><div><div class="cel-label">Sisa Tabungan</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalT)}</div></div></div>
       <div class="cel-box c" onclick="toggleCelTable();showToast('🛡️ Dana Darurat saat ini: ${fmt(totalC)}')"><div class="cel-icon">🛡️</div><div><div class="cel-label">Dana Darurat</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalC)}</div></div></div>
       <div class="cel-box h" onclick="toggleCelTable();showToast('🎟️ Healing & Hiburan saat ini: ${fmt(totalH)}')"><div class="cel-icon">🎟️</div><div><div class="cel-label">Healing & Hiburan</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalH)}</div></div></div>
-      <div class="cel-box e" onclick="toggleCelTable();showToast('🪙 Tabung Emas saat ini: ${fmt(totalE)}')"><div class="cel-icon">🪙</div><div><div class="cel-label">Tabung Emas</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalE)}</div></div></div>`;
+      <div class="cel-box e" onclick="toggleCelTable();showToast('🪙 Investasi saat ini: ${fmt(totalE)}')"><div class="cel-icon">🪙</div><div><div class="cel-label">Investasi</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalE)}</div></div></div>`;
         const tbody = document.getElementById("celenganTbody"),
           empty = document.getElementById("celenganEmpty");
         if (!detail.length) {
