@@ -1967,7 +1967,58 @@
             <div class="ratio-wrap" id="ratioWrap"></div>
           </div>
 
-          <div class="section-title">Pengeluaran per Kategori</div>
+          <div class="section-title">Tren Tahunan per Bulan</div>
+          <div class="card bar-card">
+            <div style="position: relative">
+              <canvas
+                id="yearLineCanvas"
+                height="190"
+                style="width: 100%; display: block; cursor: pointer"
+              ></canvas>
+              <div
+                id="yearLineTooltip"
+                style="
+                  position: absolute;
+                  display: none;
+                  background: rgba(21, 48, 44, 0.92);
+                  color: #fff;
+                  font-family: &quot;DM Mono&quot;, monospace;
+                  font-size: 0.62rem;
+                  padding: 6px 9px;
+                  border-radius: 8px;
+                  pointer-events: none;
+                  white-space: nowrap;
+                  z-index: 5;
+                "
+              ></div>
+            </div>
+            <div
+              style="
+                display: flex;
+                gap: 14px;
+                justify-content: center;
+                font-size: 0.66rem;
+                color: var(--ink-2);
+                margin-top: 6px;
+              "
+            >
+              <span>💜 Pemasukan</span>
+              <span>🌸 Pengeluaran</span>
+            </div>
+            <div
+              style="
+                font-size: 0.62rem;
+                color: var(--ink-3);
+                text-align: center;
+                margin-top: 2px;
+              "
+            >
+              👆 Sentuh/hover titik untuk lihat rincian bulan itu · ketuk untuk
+              lompat ke bulan tsb
+            </div>
+          </div>
+
+          <div class="section-title">Pengeluaran per Kategori Bujet</div>
           <div class="card">
             <div
               style="
@@ -2158,6 +2209,33 @@
             🔄 <b>Pindah Saldo</b> dapat memindahkan uang antar lokasi Bank/Cash
             <b>dalam budget yang sama maupun antar budget</b>. Perpindahan ini
             <b>bukan pengeluaran</b>, jadi tidak masuk ke laporan pengeluaran.
+          </div>
+
+          <div class="field" id="fieldScanStruk" style="display: none">
+            <button
+              type="button"
+              class="btn-submit"
+              style="
+                background: var(--gold-soft);
+                color: #a66b13;
+                box-shadow: none;
+                border: 1px dashed #f4b860;
+              "
+              onclick="openScanModal()"
+            >
+              📷 Scan Struk Belanja
+            </button>
+            <div
+              style="
+                font-size: 0.62rem;
+                color: var(--ink-3);
+                line-height: 1.45;
+                margin-top: 4px;
+              "
+            >
+              Foto/upload struk belanja, item & harga otomatis terbaca — nggak
+              perlu input satu-satu.
+            </div>
           </div>
 
           <div class="field" id="fieldKat">
@@ -2383,6 +2461,135 @@
           >
             Pakai Saldo Celengan
           </button>
+        </div>
+      </div>
+
+      <!-- Scan Struk Belanja modal -->
+      <div class="modal-overlay" id="modalScan">
+        <div class="modal-sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-head">
+            <h3>📷 Scan Struk Belanja</h3>
+            <button class="sheet-close" onclick="closeScanModal()">✕</button>
+          </div>
+
+          <div
+            class="hint-sbl"
+            style="
+              background: var(--gold-soft);
+              border-color: #ffe1ad;
+              color: #a66b13;
+            "
+          >
+            📷 Foto/upload struk, sistem coba baca nama & harga tiap item
+            otomatis. Hasil baca <b>bisa diedit dulu</b> sebelum disimpan — tiap
+            item bakal tercatat <b>terpisah per produk</b> di Riwayat, bukan
+            digabung jadi satu total belanja.
+          </div>
+
+          <div class="field">
+            <label>Foto Struk</label>
+            <input
+              type="file"
+              id="fScanImage"
+              accept="image/*"
+              capture="environment"
+              onchange="handleScanImageSelected(event)"
+              style="
+                width: 100%;
+                font-size: 0.72rem;
+                padding: 8px;
+                border: 1px dashed var(--line);
+                border-radius: var(--r-sm);
+                background: var(--white);
+              "
+            />
+          </div>
+
+          <img
+            id="scanPreviewImg"
+            style="
+              display: none;
+              max-width: 100%;
+              max-height: 220px;
+              object-fit: contain;
+              border-radius: var(--r-sm);
+              margin-bottom: 10px;
+              border: 1px solid var(--line);
+            "
+          />
+
+          <button
+            type="button"
+            class="btn-submit"
+            id="btnRunScan"
+            onclick="runScanOCR()"
+            disabled
+            style="opacity: 0.5"
+          >
+            🔍 Baca Struk Otomatis
+          </button>
+          <div
+            id="scanProgress"
+            style="
+              font-size: 0.68rem;
+              color: var(--ink-3);
+              text-align: center;
+              margin: 6px 0;
+            "
+          ></div>
+
+          <div id="scanItemsWrap" style="display: none; margin-top: 10px">
+            <div class="field">
+              <label>Tanggal</label>
+              <input type="date" id="fScanTanggal" />
+            </div>
+            <div class="field">
+              <label>Metode Pembayaran (untuk semua item)</label>
+              <select id="fScanMetode"></select>
+            </div>
+
+            <div
+              class="section-title"
+              style="margin: 10px 0 6px; font-size: 0.78rem"
+            >
+              Rincian Item (edit dulu kalau ada yang salah baca)
+            </div>
+            <div id="scanItemsList"></div>
+            <button
+              type="button"
+              class="btn-submit"
+              style="
+                background: var(--mint-100);
+                color: var(--mint-700);
+                box-shadow: none;
+                margin-top: 6px;
+              "
+              onclick="addScanRow()"
+            >
+              + Tambah Baris Manual
+            </button>
+
+            <div
+              id="scanTotalPreview"
+              class="num"
+              style="
+                text-align: center;
+                font-size: 0.9rem;
+                font-weight: 700;
+                margin: 12px 0 4px;
+                color: var(--ink);
+              "
+            ></div>
+
+            <button
+              class="btn-submit"
+              onclick="simpanScanItems()"
+              style="margin-top: 6px"
+            >
+              💾 Simpan Semua ke Riwayat
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2972,7 +3179,14 @@
           .filter(
             (r) =>
               r.tipe === "pengeluaran" &&
-              groupOfKategori(r.kategori || "Lainnya") === group,
+              groupOfKategori(r.kategori || "Lainnya") === group &&
+              // Pengeluaran yang diambil dari saldo Celengan TIDAK mengurangi
+              // alokasi bujet bulan berjalan — uangnya sudah diambil dari
+              // akumulasi saldo Celengan bulan-bulan sebelumnya, bukan dari
+              // jatah bulan ini. Kalau ikut dihitung di sini, kartu bujet di
+              // Beranda bisa salah tampil minus padahal sisa bujet bulan
+              // berjalan sebenarnya belum tentu minus.
+              !r.dariCelengan,
           )
           .reduce((s, r) => s + Number(r.jml || 0), 0);
       }
@@ -3277,7 +3491,7 @@
       function showSpendSliceInfo(key) {
         const s = lastSpendSlices.find((x) => x.key === key);
         if (!s) return;
-        showToast(`${s.icon} ${s.key}: ${fmt(s.val)} (${s.pct}%)`);
+        showToast(`${s.icon} ${s.name || s.key}: ${fmt(s.val)} (${s.pct}%)`);
         const row = document.getElementById("sr-" + safeDomId(s.key));
         if (row) row.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
@@ -3353,12 +3567,16 @@
               }
             }
 
-            return `<div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)}<div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${info}</div></span><span class="spend-detail-jml" style="color:${nominalColor}">${nominal}</span></div>`;
+            const celTag = r.dariCelengan
+              ? ' · <span style="color:var(--mint-700)">💰 dari Celengan</span>'
+              : "";
+
+            return `<div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)}<div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${info}${celTag}</div></span><span class="spend-detail-jml" style="color:${nominalColor}">${nominal}</span></div>`;
           })
           .join("");
         return `<div class="budget-detail" id="bd-${group}">
           <div class="budget-detail-head"><span>Terpakai ${pct}%</span><span>${sisa >= 0 ? "Sisa " + fmt(sisa) : "Lebih " + fmt(Math.abs(sisa))}</span></div>
-          <div class="budget-detail-note">Pengeluaran mengurangi total budget. Pindah saldo antar-budget hanya memindahkan alokasi dan saldo, <b>bukan pengeluaran</b>. Bank ↔ Cash dalam budget yang sama hanya mengubah lokasi saldo.</div>
+          <div class="budget-detail-note">Pengeluaran mengurangi total budget. Pindah saldo antar-budget hanya memindahkan alokasi dan saldo, <b>bukan pengeluaran</b>. Bank ↔ Cash dalam budget yang sama hanya mengubah lokasi saldo. Pengeluaran dari saldo Celengan (💰) tetap tercatat di sini tapi <b>tidak mengurangi</b> bujet bulan ini, karena uangnya diambil dari saldo Celengan.</div>
           <div class="budget-detail-list">${items || `<div class="budget-detail-note">Belum ada transaksi untuk bagian ini.</div>`}</div>
         </div>`;
       }
@@ -4379,6 +4597,8 @@
           "fieldWalletTransfer",
         );
         const submit = document.getElementById("submitLabel");
+        const fieldScanStruk = document.getElementById("fieldScanStruk");
+        fieldScanStruk.style.display = t === "pengeluaran" ? "" : "none";
 
         hintTransfer.style.display = t === "transfer_saldo" ? "" : "none";
         fieldKat.style.display = t === "pemasukan" ? "none" : "";
@@ -4575,6 +4795,264 @@
         renderPiggy();
         renderHistory();
         showToast("✓ Transaksi dihapus");
+      }
+
+      /* ---------------- Scan Struk Belanja ---------------- */
+      let scanItems = []; // {nama, harga, kat, aktif}
+      let scanImageDataUrl = null;
+      let tesseractLoadingPromise = null;
+
+      function ensureTesseractLoaded() {
+        if (window.Tesseract) return Promise.resolve();
+        if (tesseractLoadingPromise) return tesseractLoadingPromise;
+        tesseractLoadingPromise = new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src =
+            "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+          s.onload = () => resolve();
+          s.onerror = () =>
+            reject(new Error("Gagal memuat mesin pembaca teks (OCR)."));
+          document.head.appendChild(s);
+        });
+        return tesseractLoadingPromise;
+      }
+
+      function openScanModal() {
+        if (!requireAuth()) return;
+        scanItems = [];
+        scanImageDataUrl = null;
+        document.getElementById("fScanImage").value = "";
+        document.getElementById("scanPreviewImg").style.display = "none";
+        document.getElementById("scanItemsWrap").style.display = "none";
+        document.getElementById("scanProgress").textContent = "";
+        document.getElementById("btnRunScan").disabled = true;
+        document.getElementById("btnRunScan").style.opacity = 0.5;
+        document.getElementById("fScanTanggal").value = todayStr();
+        document.getElementById("fScanMetode").innerHTML =
+          METODE_PEMBAYARAN.map(
+            (m) => `<option value="${m.key}">${m.label}</option>`,
+          ).join("");
+        document.getElementById("modalScan").classList.add("show");
+      }
+
+      function closeScanModal() {
+        document.getElementById("modalScan").classList.remove("show");
+      }
+
+      function handleScanImageSelected(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          scanImageDataUrl = reader.result;
+          const img = document.getElementById("scanPreviewImg");
+          img.src = scanImageDataUrl;
+          img.style.display = "block";
+          document.getElementById("btnRunScan").disabled = false;
+          document.getElementById("btnRunScan").style.opacity = 1;
+          document.getElementById("scanItemsWrap").style.display = "none";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Heuristik parsing baris struk: cari baris yang punya angka harga di
+      // ujung baris (format umum: "NAMA BARANG   12.000" atau "NAMA 2x5000").
+      // Baris ringkasan (subtotal/total/pajak/kembalian/tunai) dibuang supaya
+      // tidak ikut ke-input sebagai item belanja.
+      function parseStrukText(text) {
+        const SKIP_WORDS =
+          /\b(sub ?total|total|pajak|ppn|tax|kembali|kembalian|tunai|cash|bayar|change|diskon|discount|kasir|cashier|struk|receipt|no\.?\s*transaksi|npwp|nota|item|qty)\b/i;
+        const PRICE_RE = /(\d{1,3}(?:[.,]\d{3})+|\d{4,})\s*$/;
+
+        const lines = text
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean);
+
+        const items = [];
+        for (const line of lines) {
+          if (SKIP_WORDS.test(line)) continue;
+          const m = line.match(PRICE_RE);
+          if (!m) continue;
+          let harga = Number(m[1].replace(/[.,]/g, ""));
+          if (!harga || harga < 100 || harga > 50000000) continue;
+
+          let nama = line.slice(0, m.index).trim();
+          // buang qty/prefix seperti "2x" "2 x" di depan nama
+          nama = nama.replace(/^\d+\s*[xX]\s*/, "").trim();
+          nama = nama.replace(/^[-•*]+\s*/, "").trim();
+          if (!nama || nama.length < 2) nama = "Item belanja";
+          if (nama.length > 40) nama = nama.slice(0, 40);
+
+          items.push({ nama, harga, kat: "Kebutuhan", aktif: true });
+        }
+        return items;
+      }
+
+      async function runScanOCR() {
+        if (!scanImageDataUrl) return;
+        const progress = document.getElementById("scanProgress");
+        const btn = document.getElementById("btnRunScan");
+        btn.disabled = true;
+        btn.style.opacity = 0.5;
+        try {
+          progress.textContent = "⏳ Menyiapkan mesin pembaca teks…";
+          await ensureTesseractLoaded();
+
+          progress.textContent = "🔍 Membaca teks dari struk…";
+          const result = await Tesseract.recognize(
+            scanImageDataUrl,
+            "ind+eng",
+            {
+              logger: (m) => {
+                if (m.status === "recognizing text") {
+                  progress.textContent = `🔍 Membaca struk… ${Math.round((m.progress || 0) * 100)}%`;
+                }
+              },
+            },
+          );
+
+          const text = result?.data?.text || "";
+          scanItems = parseStrukText(text);
+
+          if (!scanItems.length) {
+            showToast(
+              "⚠️ Belum ketemu item otomatis. Tambah baris manual, ya!",
+              true,
+            );
+            scanItems = [{ nama: "", harga: 0, kat: "Kebutuhan", aktif: true }];
+          } else {
+            showToast(
+              `✓ Terbaca ${scanItems.length} item, cek dulu ya sebelum simpan`,
+            );
+          }
+
+          document.getElementById("scanItemsWrap").style.display = "";
+          renderScanItemsList();
+          progress.textContent = "";
+        } catch (err) {
+          console.error(err);
+          progress.textContent = "";
+          showToast(
+            "⚠️ Gagal membaca struk otomatis. Coba foto lebih jelas atau isi manual.",
+            true,
+          );
+          scanItems = [{ nama: "", harga: 0, kat: "Kebutuhan", aktif: true }];
+          document.getElementById("scanItemsWrap").style.display = "";
+          renderScanItemsList();
+        } finally {
+          btn.disabled = false;
+          btn.style.opacity = 1;
+        }
+      }
+
+      function addScanRow() {
+        scanItems.push({ nama: "", harga: 0, kat: "Kebutuhan", aktif: true });
+        renderScanItemsList();
+      }
+
+      function removeScanRow(idx) {
+        scanItems.splice(idx, 1);
+        renderScanItemsList();
+      }
+
+      function updateScanItem(idx, field, value) {
+        if (!scanItems[idx]) return;
+        if (field === "harga")
+          value = Number(String(value).replace(/\D/g, "")) || 0;
+        if (field === "aktif") value = !!value;
+        scanItems[idx][field] = value;
+        updateScanTotalPreview();
+      }
+
+      function formatScanHargaInput(inputEl, idx) {
+        const it = scanItems[idx];
+        if (!it) return;
+        inputEl.value = it.harga
+          ? Number(it.harga).toLocaleString("id-ID")
+          : "";
+      }
+
+      function updateScanTotalPreview() {
+        const total = scanItems
+          .filter((it) => it.aktif && it.nama.trim() && it.harga > 0)
+          .reduce((s, it) => s + it.harga, 0);
+        const count = scanItems.filter(
+          (it) => it.aktif && it.nama.trim() && it.harga > 0,
+        ).length;
+        document.getElementById("scanTotalPreview").textContent =
+          count > 0
+            ? `Total ${count} item: ${fmt(total)}`
+            : "Belum ada item valid";
+      }
+
+      function renderScanItemsList() {
+        const wrap = document.getElementById("scanItemsList");
+        const katOpts = expenseCategoryOptions();
+        wrap.innerHTML = scanItems
+          .map((it, idx) => {
+            return `<div style="display:flex;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+              <input type="checkbox" ${it.aktif ? "checked" : ""} onchange="updateScanItem(${idx},'aktif',this.checked)" style="width:16px;height:16px;flex:0 0 auto" />
+              <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+                <input type="text" value="${escapeHtml(it.nama)}" placeholder="Nama produk" oninput="updateScanItem(${idx},'nama',this.value)" style="width:100%;font-size:0.75rem;padding:7px 9px;border:1px solid var(--line);border-radius:8px" />
+                <div style="display:flex;gap:4px">
+                  <input type="text" inputmode="numeric" value="${it.harga ? Number(it.harga).toLocaleString("id-ID") : ""}" placeholder="Harga" oninput="updateScanItem(${idx},'harga',this.value)" onblur="formatScanHargaInput(this,${idx})" style="width:100%;font-size:0.72rem;padding:6px 8px;border:1px solid var(--line);border-radius:8px" />
+                  <select onchange="updateScanItem(${idx},'kat',this.value)" style="width:100%;font-size:0.68rem;padding:6px 4px;border:1px solid var(--line);border-radius:8px">
+                    ${katOpts.replace(`value="${it.kat}"`, `value="${it.kat}" selected`)}
+                  </select>
+                </div>
+              </div>
+              <button type="button" onclick="removeScanRow(${idx})" style="flex:0 0 auto;background:none;border:none;color:var(--coral);font-size:1rem;padding:4px">✕</button>
+            </div>`;
+          })
+          .join("");
+        updateScanTotalPreview();
+      }
+
+      async function simpanScanItems() {
+        const tanggal = document.getElementById("fScanTanggal").value;
+        const metode = document.getElementById("fScanMetode").value;
+        if (!tanggal) {
+          showToast("⚠️ Isi tanggal dulu!", true);
+          return;
+        }
+        const valid = scanItems.filter(
+          (it) => it.aktif && it.nama.trim() && it.harga > 0,
+        );
+        if (!valid.length) {
+          showToast("⚠️ Belum ada item valid untuk disimpan!", true);
+          return;
+        }
+
+        const ym = bulanOf(tanggal);
+        let baseId = Date.now();
+        valid.forEach((it, i) => {
+          data.push({
+            id: baseId + i,
+            tanggal,
+            bulan: ym,
+            tipe: "pengeluaran",
+            ket: it.nama.trim(),
+            jml: it.harga,
+            kategori: it.kat,
+            metode,
+            dariScan: true,
+          });
+        });
+
+        await saveData();
+        await syncCarryoversUpToCurrent();
+        ensureMonthOptions();
+        document.getElementById("yearPicker").value = ym.split("-")[0];
+        rebuildMonthOptionsForYear(ym.split("-")[0], ym);
+        currentMonth = ym;
+        renderHome();
+        renderReport();
+        renderPiggy();
+        renderHistory();
+        closeScanModal();
+        closeAddModal();
+        showToast(`✓ ${valid.length} item belanja ditambahkan ke Riwayat`);
       }
 
       /* ---------------- more modal ---------------- */
@@ -5066,6 +5544,7 @@
       /* ---------------- REPORT render ---------------- */
       function renderReport() {
         drawBar();
+        drawYearLine();
         drawSpendDonut();
       }
 
@@ -5259,11 +5738,243 @@
         const tot = inc + out,
           pI = tot ? Math.round((inc / tot) * 100) : 50,
           pO = tot ? Math.round((out / tot) * 100) : 50;
+        const outCelengan = rows
+          .filter((r) => r.tipe === "pengeluaran" && r.dariCelengan)
+          .reduce((s, r) => s + Number(r.jml || 0), 0);
+        const celenganNote = outCelengan
+          ? `<div class="ratio-note" style="color:var(--mint-700)">💰 Termasuk ${fmt(outCelengan)} dari saldo Celengan (bukan dari pemasukan bulan ini)</div>`
+          : "";
         document.getElementById("ratioWrap").innerHTML = `
       <div class="ratio-lbl"><span>💜 ${pI}% — ${fmt(inc)}</span><span>${fmt(out)} — ${pO}% 🌸</span></div>
       <div class="ratio-track" onclick="showToast('${inc >= out ? "✅ Surplus " + fmt(inc - out) : "⚠️ Defisit " + fmt(out - inc)}')"><div class="ratio-in" style="width:${pI}%"></div><div class="ratio-out" style="width:${pO}%"></div></div>
-      <div class="ratio-note">${inc >= out ? "✅ Surplus " + fmt(inc - out) : "⚠️ Defisit " + fmt(out - inc) + " — pengeluaran melebihi pemasukan"}</div>`;
+      <div class="ratio-note">${inc >= out ? "✅ Surplus " + fmt(inc - out) : "⚠️ Defisit " + fmt(out - inc) + " — pengeluaran melebihi pemasukan"}</div>
+      ${celenganNote}`;
       }
+
+      /* ---------------- Grafik garis tren tahunan (per bulan) ---------------- */
+      let yearLineAnim = null;
+      function drawYearLine() {
+        const yearSel = document.getElementById("yearPicker");
+        const year = (yearSel && yearSel.value) || thisYm().split("-")[0];
+
+        const months = [];
+        for (let m = 1; m <= 12; m++) {
+          const ym = year + "-" + String(m).padStart(2, "0");
+          const rows = rowsForMonth(ym);
+          const inc = rows
+            .filter(
+              (r) =>
+                r.tipe === "pemasukan" ||
+                r.tipe === "pemasukan_tetap" ||
+                r.tipe === "saldo_bulan_lalu",
+            )
+            .reduce((s, r) => s + Number(r.jml || 0), 0);
+          const out = rows
+            .filter((r) => r.tipe === "pengeluaran")
+            .reduce((s, r) => s + Number(r.jml || 0), 0);
+          months.push({ ym, m, inc, out });
+        }
+
+        const cv = document.getElementById("yearLineCanvas");
+        if (!cv) return;
+        const dpr = window.devicePixelRatio || 1;
+        const Wcss = cv.offsetWidth || 360;
+        cv.width = Wcss * dpr;
+        cv.height = 190 * dpr;
+        cv.style.width = Wcss + "px";
+        cv.style.height = "190px";
+        const ctx = cv.getContext("2d");
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        const W = Wcss,
+          H = 190,
+          padT = 20,
+          padB = 26,
+          padX = 46;
+        const chartH = H - padT - padB,
+          chartW = W - padX * 2;
+        const mx = Math.max(1, ...months.map((mo) => Math.max(mo.inc, mo.out)));
+        const MINT = "#8B7CF6",
+          CORAL = "#FF7A8A";
+        const stepX = chartW / 11;
+        const xOf = (i) => padX + stepX * i;
+        const yOf = (v) => padT + chartH - (v / mx) * chartH;
+
+        let prog = 0;
+        if (yearLineAnim) cancelAnimationFrame(yearLineAnim);
+
+        function drawGrid() {
+          ctx.clearRect(0, 0, W, H);
+          const steps = 4;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          ctx.font = '9px "DM Mono",monospace';
+          for (let i = 0; i <= steps; i++) {
+            const val = (mx / steps) * i;
+            const y = padT + chartH - (val / mx) * chartH;
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(21,48,44,.08)";
+            ctx.lineWidth = 1;
+            ctx.moveTo(padX - 6, y);
+            ctx.lineTo(W - padX + 20, y);
+            ctx.stroke();
+            ctx.fillStyle = "#AAA2B8";
+            const lbl =
+              val >= 1000000
+                ? (val / 1000000).toFixed(1) + "jt"
+                : val >= 1000
+                  ? (val / 1000).toFixed(0) + "rb"
+                  : val.toFixed(0);
+            ctx.fillText(lbl, padX - 10, y);
+          }
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.font = '9px "Plus Jakarta Sans",sans-serif';
+          ctx.fillStyle = "#AAA2B8";
+          months.forEach((mo, i) => {
+            const isCur = mo.ym === currentMonth;
+            ctx.fillStyle = isCur ? "#8B7CF6" : "#AAA2B8";
+            ctx.font = isCur
+              ? 'bold 9px "Plus Jakarta Sans",sans-serif'
+              : '9px "Plus Jakarta Sans",sans-serif';
+            ctx.fillText(
+              BLN[mo.m - 1] || String(mo.m),
+              xOf(i),
+              padT + chartH + 6,
+            );
+          });
+        }
+
+        function drawLine(getVal, color, ease) {
+          ctx.beginPath();
+          months.forEach((mo, i) => {
+            const x = xOf(i);
+            const y = yOf(getVal(mo) * ease);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.4;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke();
+          months.forEach((mo, i) => {
+            const v = getVal(mo);
+            if (!v) return;
+            const x = xOf(i);
+            const y = yOf(v * ease);
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "#fff";
+            ctx.stroke();
+          });
+        }
+
+        function animate() {
+          prog = Math.min(1, prog + 0.06);
+          const ease = 1 - Math.pow(1 - prog, 3);
+          drawGrid();
+          drawLine((mo) => mo.inc, MINT, ease);
+          drawLine((mo) => mo.out, CORAL, ease);
+          if (hoverIdx != null) drawHoverMarker(hoverIdx);
+          if (prog < 1) yearLineAnim = requestAnimationFrame(animate);
+          else yearLineAnim = null;
+        }
+
+        function drawHoverMarker(i) {
+          const x = xOf(i);
+          ctx.beginPath();
+          ctx.strokeStyle = "rgba(139,124,246,.35)";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.moveTo(x, padT);
+          ctx.lineTo(x, padT + chartH);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        let hoverIdx = null;
+        animate();
+
+        const tooltip = document.getElementById("yearLineTooltip");
+        function showFor(i, clientX, clientY, rect) {
+          hoverIdx = i;
+          const mo = months[i];
+          drawGrid();
+          drawLine((m2) => m2.inc, MINT, 1);
+          drawLine((m2) => m2.out, CORAL, 1);
+          drawHoverMarker(i);
+          const selisih = mo.inc - mo.out;
+          tooltip.style.display = "block";
+          tooltip.innerHTML = `<b>${BLN[mo.m - 1]} ${year}</b><br>💜 ${fmt(mo.inc)}<br>🌸 ${fmt(mo.out)}<br>${selisih >= 0 ? "✅ +" + fmt(selisih) : "⚠️ " + fmt(selisih)}`;
+          const x = xOf(i);
+          let left = x - tooltip.offsetWidth / 2;
+          left = Math.max(0, Math.min(left, W - (tooltip.offsetWidth || 0)));
+          tooltip.style.left = left + "px";
+          tooltip.style.top = "2px";
+        }
+        function hideTooltip() {
+          hoverIdx = null;
+          tooltip.style.display = "none";
+          drawGrid();
+          drawLine((m2) => m2.inc, MINT, 1);
+          drawLine((m2) => m2.out, CORAL, 1);
+        }
+        function nearestIdx(clientX) {
+          const rect = cv.getBoundingClientRect();
+          const x = clientX - rect.left;
+          let best = 0,
+            bestD = Infinity;
+          months.forEach((mo, i) => {
+            const d = Math.abs(xOf(i) - x);
+            if (d < bestD) {
+              bestD = d;
+              best = i;
+            }
+          });
+          return best;
+        }
+        cv.onmousemove = (e) => {
+          const i = nearestIdx(e.clientX);
+          showFor(i, e.clientX, e.clientY);
+          cv.style.cursor = "pointer";
+        };
+        cv.onmouseleave = hideTooltip;
+        cv.onclick = (e) => {
+          const i = nearestIdx(e.clientX);
+          const mo = months[i];
+          if (!mo.inc && !mo.out) {
+            showToast(`${BLN[mo.m - 1]} ${year}: belum ada transaksi`);
+            return;
+          }
+          document.getElementById("yearPicker").value = year;
+          rebuildMonthOptionsForYear(year, mo.ym);
+          renderHome();
+          renderReport();
+          renderHistory();
+          showToast(`📅 Pindah ke ${BLN[mo.m - 1]} ${year}`);
+        };
+        cv.ontouchstart = (e) => {
+          const t = e.touches && e.touches[0];
+          if (!t) return;
+          const i = nearestIdx(t.clientX);
+          showFor(i, t.clientX, t.clientY);
+        };
+        cv.ontouchend = () => setTimeout(hideTooltip, 1500);
+      }
+
+      const BUDGET_GROUP_COLORS = {
+        k: "#ff7a8a",
+        w: "#d66ba0",
+        t: "#8b7cf6",
+        c: "#f4b860",
+        h: "#67b7dc",
+        e: "#d9a441",
+      };
 
       function drawSpendDonut(activeKey = null) {
         const rows = rowsForMonth(currentMonth);
@@ -5291,11 +6002,18 @@
         emptyEl.style.display = "none";
         const map = {};
         out.forEach((r) => {
-          const k = normalizeKategori(r.kategori);
-          map[k] = (map[k] || 0) + r.jml;
+          const g = groupOfKategori(r.kategori || "Lainnya");
+          map[g] = (map[g] || 0) + r.jml;
         });
-        const slices = KATEGORI.filter((k) => map[k.key])
-          .map((k) => ({ ...k, val: map[k.key] }))
+        const slices = Object.entries(BUDGET_GROUPS)
+          .filter(([g]) => map[g])
+          .map(([g, b]) => ({
+            key: g,
+            name: b.label,
+            icon: b.icon,
+            color: BUDGET_GROUP_COLORS[g],
+            val: map[g],
+          }))
           .sort((a, b) => b.val - a.val);
         let a = -Math.PI / 2;
         slices.forEach((s) => {
@@ -5341,7 +6059,7 @@
           ctx.fillStyle = "#AAA2B8";
           ctx.font = '9px "Plus Jakarta Sans",sans-serif';
           ctx.fillText(
-            activeSlice ? activeSlice.key : "Total Keluar",
+            activeSlice ? activeSlice.name : "Total Keluar",
             cx,
             cy + 8,
           );
@@ -5353,7 +6071,7 @@
           if (hit) {
             render(hit.key);
             showChartTooltip(
-              `${hit.icon} ${hit.key}<br>${fmt(hit.val)} · ${hit.pct}%`,
+              `${hit.icon} ${hit.name}<br>${fmt(hit.val)} · ${hit.pct}%`,
               e.clientX,
               e.clientY,
             );
@@ -5382,7 +6100,7 @@
             const pt = pointerOnCanvas(e, cv);
             render(hit.key);
             showChartTooltip(
-              `${hit.icon} ${hit.key}<br>${fmt(hit.val)} · ${hit.pct}%`,
+              `${hit.icon} ${hit.name}<br>${fmt(hit.val)} · ${hit.pct}%`,
               pt.clientX,
               pt.clientY,
             );
@@ -5395,12 +6113,14 @@
         listEl.innerHTML = slices
           .map((s) => {
             const txs = sortRowsNewestFirst(
-              out.filter((r) => normalizeKategori(r.kategori) === s.key),
+              out.filter(
+                (r) => groupOfKategori(r.kategori || "Lainnya") === s.key,
+              ),
             );
             const details = txs
               .map(
                 (r) => `
-        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)}<div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${metodeLabel(r.metode)}</div></span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
+        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)} <span style="color:var(--ink-3)">(${escapeHtml(normalizeKategori(r.kategori))})</span><div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${metodeLabel(r.metode)}${r.dariCelengan ? ' · <span style="color:var(--mint-700)">💰 dari Celengan</span>' : ""}</div></span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
               )
               .join("");
             const id = safeDomId(s.key);
@@ -5408,7 +6128,7 @@
         <div class="spend-row" id="sr-${id}" onclick="toggleSpendDetail('${escapeHtml(s.key)}')" onmouseenter="showSpendSliceInfo('${escapeHtml(s.key)}')">
           <div class="spend-icon">${s.icon}</div>
           <div class="spend-info">
-            <div class="spend-name"><span>${s.key}</span><span class="pct">${s.pct}%</span></div>
+            <div class="spend-name"><span>${s.name}</span><span class="pct">${s.pct}%</span></div>
             <div class="spend-bar-bg"><div class="spend-bar-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
           </div>
           <div class="spend-val">${fmt(s.val)}</div>
@@ -5667,6 +6387,8 @@
               amtClass = "neg";
               sign = "-";
               methodInfo = `${metodeLabel(r.metode)} · dari saldo Celengan`;
+            } else if (r.tipe === "pengeluaran" && r.dariScan) {
+              methodInfo = `${metodeLabel(r.metode)} · 📷 dari Scan Struk`;
             }
 
             const categoryInfo = isTransfer
