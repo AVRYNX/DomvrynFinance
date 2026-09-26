@@ -1940,7 +1940,9 @@
 
         <!-- REPORT -->
         <section class="screen" id="screen-report">
-          <div class="section-title">Pemasukan vs Pengeluaran</div>
+          <div class="section-title" id="titleBarPemasukanPengeluaran">
+            Pemasukan vs Pengeluaran
+          </div>
           <div class="card bar-card">
             <div style="position: relative">
               <canvas
@@ -1967,7 +1969,9 @@
             <div class="ratio-wrap" id="ratioWrap"></div>
           </div>
 
-          <div class="section-title">Tren Tahunan per Bulan</div>
+          <div class="section-title" id="titleTrenTahunan">
+            Tren Tahunan per Bulan
+          </div>
           <div class="card bar-card">
             <div style="position: relative">
               <canvas
@@ -2018,7 +2022,7 @@
             </div>
           </div>
 
-          <div class="section-title">Pengeluaran per Kategori Bujet</div>
+          <div class="section-title">Pengeluaran per Alokasi Anggaran</div>
           <div class="card">
             <div
               style="
@@ -2489,20 +2493,44 @@
 
           <div class="field">
             <label>Foto Struk</label>
+            <div style="display: flex; gap: 8px">
+              <button
+                type="button"
+                class="btn-submit"
+                style="flex: 1; font-size: 0.72rem; padding: 10px"
+                onclick="document.getElementById('fScanImageCamera').click()"
+              >
+                📷 Ambil Foto
+              </button>
+              <button
+                type="button"
+                class="btn-submit"
+                style="
+                  flex: 1;
+                  font-size: 0.72rem;
+                  padding: 10px;
+                  background: var(--mint-100);
+                  color: var(--mint-700);
+                "
+                onclick="document.getElementById('fScanImageGallery').click()"
+              >
+                🖼️ Pilih dari Galeri
+              </button>
+            </div>
             <input
               type="file"
-              id="fScanImage"
+              id="fScanImageCamera"
               accept="image/*"
               capture="environment"
               onchange="handleScanImageSelected(event)"
-              style="
-                width: 100%;
-                font-size: 0.72rem;
-                padding: 8px;
-                border: 1px dashed var(--line);
-                border-radius: var(--r-sm);
-                background: var(--white);
-              "
+              style="display: none"
+            />
+            <input
+              type="file"
+              id="fScanImageGallery"
+              accept="image/*"
+              onchange="handleScanImageSelected(event)"
+              style="display: none"
             />
           </div>
 
@@ -3512,14 +3540,21 @@
 
       function walletSplitHtml(group, rows, budget) {
         const ws = walletStatsForGroup(rows, group, budget);
+        // Ditampilkan minimal 0: pemakaian dari saldo Celengan (dariCelengan)
+        // memang bisa melebihi jatah bulan ini karena diambil dari akumulasi
+        // bulan-bulan sebelumnya (lihat hitungCelengan) — itu sudah benar
+        // mengurangi total saldo Celengan, tapi TIDAK seharusnya membuat
+        // tampilan Saldo Bank/Cash bulan ini di Beranda jadi minus.
+        const bankDisp = Math.max(0, ws.bank);
+        const cashDisp = Math.max(0, ws.cash);
         return `<div class="wallet-split">
           <div class="wallet-box bank">
             <div class="wallet-label">🏦 Saldo Bank</div>
-            <div class="wallet-value ${ws.bank < 0 ? "minus" : ""}">${fmt(ws.bank)}</div>
+            <div class="wallet-value">${fmt(bankDisp)}</div>
           </div>
           <div class="wallet-box cash">
             <div class="wallet-label">💵 Saldo Cash</div>
-            <div class="wallet-value ${ws.cash < 0 ? "minus" : ""}">${fmt(ws.cash)}</div>
+            <div class="wallet-value">${fmt(cashDisp)}</div>
           </div>
         </div>`;
       }
@@ -4079,6 +4114,25 @@
       function monthLbl(ym) {
         const [y, m] = ym.split("-");
         return BLN[+m - 1] + " " + y;
+      }
+      const BLN_FULL = [
+        "Januari",
+        "Februari",
+        "Maret",
+        "April",
+        "Mei",
+        "Juni",
+        "Juli",
+        "Agustus",
+        "September",
+        "Oktober",
+        "November",
+        "Desember",
+      ];
+      function monthNameFull(ym) {
+        if (!ym) return "";
+        const m = Number(ym.split("-")[1]);
+        return BLN_FULL[m - 1] || "";
       }
       function fmtDate(d) {
         if (!d) return "—";
@@ -4821,7 +4875,8 @@
         if (!requireAuth()) return;
         scanItems = [];
         scanImageDataUrl = null;
-        document.getElementById("fScanImage").value = "";
+        document.getElementById("fScanImageCamera").value = "";
+        document.getElementById("fScanImageGallery").value = "";
         document.getElementById("scanPreviewImg").style.display = "none";
         document.getElementById("scanItemsWrap").style.display = "none";
         document.getElementById("scanProgress").textContent = "";
@@ -5316,8 +5371,7 @@
               over
                 ? `<div class="over-flag">⚠️ Lebih ${fmt(amountUsed - budget)} (${Math.round(pct)}%)</div>`
                 : `<div class="prog-info">${fmt(amountUsed)} terpakai · <b class="${sisa >= 0 ? "ok" : "bad"}">${fmt(Math.abs(sisa))} ${sisa >= 0 ? "sisa" : "lebih"}</b></div>`
-            }
-            <div class="tap-hint">👆 Ketuk untuk lihat rincian</div>`;
+            }`;
         }
 
         const sblTag =
@@ -5336,7 +5390,7 @@
         function cardHtml(group, extraTag = "") {
           const b = BUDGET_GROUPS[group];
           const allocation = allocations[group];
-          return `<div class="budget-card" id="bc-${group}" onclick="toggleBudgetDetail('${group}')">
+          return `<div class="budget-card" id="bc-${group}">
             <div class="budget-top">
               <div class="budget-name">${b.icon} ${b.label}</div>
               <div class="budget-amt">${fmt(allocation)}</div>
@@ -5344,7 +5398,6 @@
             ${extraTag}
             ${walletSplitHtml(group, rows, allocation)}
             ${progHtml(used[group], allocation)}
-            ${budgetDetailHtml(group, rows, used[group], allocation)}
           </div>`;
         }
 
@@ -5550,6 +5603,13 @@
 
       let barAnim = null;
       function drawBar() {
+        const titleEl = document.getElementById("titleBarPemasukanPengeluaran");
+        if (titleEl) {
+          const namaBulan = monthNameFull(currentMonth);
+          titleEl.textContent = namaBulan
+            ? `Pemasukan vs Pengeluaran Bulan ${namaBulan}`
+            : "Pemasukan vs Pengeluaran";
+        }
         const rows = rowsForMonth(currentMonth);
         const inc = rows
           .filter(
@@ -5756,6 +5816,8 @@
       function drawYearLine() {
         const yearSel = document.getElementById("yearPicker");
         const year = (yearSel && yearSel.value) || thisYm().split("-")[0];
+        const titleEl = document.getElementById("titleTrenTahunan");
+        if (titleEl) titleEl.textContent = `Tren Tahun ${year} per Bulan`;
 
         const months = [];
         for (let m = 1; m <= 12; m++) {
