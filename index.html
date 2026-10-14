@@ -1724,7 +1724,8 @@
           min-height: 150px;
         }
 
-        #screen-home .donut-block {
+        #screen-home .donut-block,
+        #screen-report .donut-block {
           display: grid;
           grid-template-columns: 220px minmax(0, 1fr);
           align-items: center;
@@ -1732,7 +1733,8 @@
           padding: 24px;
         }
 
-        #screen-home .legend {
+        #screen-home .legend,
+        #screen-report .legend {
           justify-content: flex-start;
         }
 
@@ -1817,7 +1819,8 @@
           grid-template-columns: 1fr;
         }
 
-        #screen-home .donut-block {
+        #screen-home .donut-block,
+        #screen-report .donut-block {
           grid-template-columns: 1fr;
         }
 
@@ -1930,16 +1933,16 @@
 
           <div class="section-title">Alokasi Anggaran</div>
           <div id="budgetCards"></div>
+        </section>
 
+        <!-- REPORT -->
+        <section class="screen" id="screen-report">
           <div class="section-title">Komposisi Alokasi</div>
           <div class="donut-block">
             <canvas id="donutBudget" width="190" height="190"></canvas>
             <div class="legend" id="legendBudget"></div>
           </div>
-        </section>
 
-        <!-- REPORT -->
-        <section class="screen" id="screen-report">
           <div class="section-title" id="titleBarPemasukanPengeluaran">
             Pemasukan vs Pengeluaran
           </div>
@@ -2037,6 +2040,14 @@
             <div class="empty" id="spendEmpty" style="display: none">
               <span class="empty-emoji">🌸</span>Belum ada pengeluaran bulan
               ini.
+            </div>
+          </div>
+
+          <div class="section-title">Pemasukan per Alokasi Anggaran</div>
+          <div class="card">
+            <div id="incomeList"></div>
+            <div class="empty" id="incomeEmpty" style="display: none">
+              <span class="empty-emoji">💜</span>Belum ada pemasukan bulan ini.
             </div>
           </div>
         </section>
@@ -5409,15 +5420,6 @@
           cardHtml("h", carryTag("h")),
           cardHtml("e", carryTag("e")),
         ].join("");
-
-        drawDonutBudget(
-          allocations.k,
-          allocations.w,
-          allocations.t,
-          allocations.c,
-          allocations.h,
-          allocations.e,
-        );
       }
 
       function drawDonutBudget(k, w, t, cad, h, e) {
@@ -5567,7 +5569,6 @@
           const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
           if (hit) {
             showBudgetSliceInfo(hit.key);
-            toggleBudgetDetail(hit.key);
           }
         };
         cv.ontouchstart = (e) => {
@@ -5582,23 +5583,26 @@
               pt.clientY,
             );
             showBudgetSliceInfo(hit.key);
-            toggleBudgetDetail(hit.key);
             setTimeout(hideChartTooltip, 1800);
           }
         };
         legend.innerHTML = slices
           .map(
             (s) =>
-              `<div class="legend-item" onclick="showBudgetSliceInfo('${s.key}');toggleBudgetDetail('${s.key}')"><div class="legend-dot" style="background:${s.c}"></div>${s.l}</div>`,
+              `<div class="legend-item" onclick="showBudgetSliceInfo('${s.key}')"><div class="legend-dot" style="background:${s.c}"></div>${s.l}</div>`,
           )
           .join("");
       }
 
       /* ---------------- REPORT render ---------------- */
       function renderReport() {
+        const repRows = rowsForMonth(currentMonth);
+        const al = (g) => budgetAllocation(repRows, g);
+        drawDonutBudget(al("k"), al("w"), al("t"), al("c"), al("h"), al("e"));
         drawBar();
         drawYearLine();
         drawSpendDonut();
+        drawIncomeList();
       }
 
       let barAnim = null;
@@ -6197,6 +6201,77 @@
           <span class="spend-caret">▼</span>
         </div>
         <div class="spend-detail" id="sd-${id}">${details || "<div style='font-size:.7rem;color:var(--ink-3);padding:4px 0'>Tidak ada transaksi</div>"}</div>`;
+          })
+          .join("");
+      }
+      function drawIncomeList() {
+        const rows = rowsForMonth(currentMonth);
+        const listEl = document.getElementById("incomeList"),
+          emptyEl = document.getElementById("incomeEmpty");
+        const inc = rows.filter(
+          (r) => r.tipe === "pemasukan" || r.tipe === "pemasukan_tetap",
+        );
+        const tot = inc.reduce((s, r) => s + Number(r.jml || 0), 0);
+        if (!tot) {
+          emptyEl.style.display = "";
+          listEl.innerHTML = "";
+          return;
+        }
+        emptyEl.style.display = "none";
+
+        // Kelompokkan: dibagi otomatis, alokasi manual per budget, pemasukan tetap
+        const groups = {};
+        const add = (key, name, icon, color, r) => {
+          if (!groups[key]) groups[key] = { key, name, icon, color, txs: [] };
+          groups[key].txs.push(r);
+        };
+        inc.forEach((r) => {
+          if (r.tipe === "pemasukan_tetap") {
+            add("tetap", "Pemasukan Tetap", "💙", "#67b7dc", r);
+          } else if (r.alokasiManual) {
+            const g = r.alokasiGroup || groupOfKategori(r.kategori || "");
+            const b = BUDGET_GROUPS[g];
+            if (b)
+              add(
+                "m-" + g,
+                "Manual · " + b.label,
+                b.icon,
+                BUDGET_GROUP_COLORS[g],
+                r,
+              );
+            else add("auto", "Dibagi Otomatis", "💜", "#8b7cf6", r);
+          } else {
+            add("auto", "Dibagi Otomatis", "💜", "#8b7cf6", r);
+          }
+        });
+        const list = Object.values(groups)
+          .map((g) => {
+            g.val = g.txs.reduce((s, r) => s + Number(r.jml || 0), 0);
+            g.pct = Math.round((g.val / tot) * 100);
+            return g;
+          })
+          .sort((a, b) => b.val - a.val);
+
+        listEl.innerHTML = list
+          .map((s) => {
+            const details = sortRowsNewestFirst(s.txs)
+              .map(
+                (r) => `
+        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket || "Pemasukan")}${r.alokasiManual && BUDGET_GROUPS[r.alokasiGroup] ? ` <span style="color:var(--ink-3)">(${escapeHtml(BUDGET_GROUPS[r.alokasiGroup].label)})</span>` : ""}</span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
+              )
+              .join("");
+            const id = "in-" + safeDomId(s.key);
+            return `
+        <div class="spend-row" id="sr-${id}" onclick="toggleSpendDetail('${id.replace(/^in-/, "in-")}')">
+          <div class="spend-icon">${s.icon}</div>
+          <div class="spend-info">
+            <div class="spend-name"><span>${s.name}</span><span class="pct">${s.pct}%</span></div>
+            <div class="spend-bar-bg"><div class="spend-bar-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
+          </div>
+          <div class="spend-val">${fmt(s.val)}</div>
+          <span class="spend-caret">▼</span>
+        </div>
+        <div class="spend-detail" id="sd-${id}">${details}</div>`;
           })
           .join("");
       }
