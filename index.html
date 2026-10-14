@@ -1942,6 +1942,11 @@
             <canvas id="donutBudget" width="190" height="190"></canvas>
             <div class="legend" id="legendBudget"></div>
           </div>
+          <div
+            class="card"
+            id="budgetIncomePanel"
+            style="display: none; margin-top: 10px"
+          ></div>
 
           <div class="section-title" id="titleBarPemasukanPengeluaran">
             Pemasukan vs Pengeluaran
@@ -2040,14 +2045,6 @@
             <div class="empty" id="spendEmpty" style="display: none">
               <span class="empty-emoji">🌸</span>Belum ada pengeluaran bulan
               ini.
-            </div>
-          </div>
-
-          <div class="section-title">Pemasukan per Alokasi Anggaran</div>
-          <div class="card">
-            <div id="incomeList"></div>
-            <div class="empty" id="incomeEmpty" style="display: none">
-              <span class="empty-emoji">💜</span>Belum ada pemasukan bulan ini.
             </div>
           </div>
         </section>
@@ -3525,6 +3522,119 @@
       function showBudgetSliceInfo(key) {
         const s = lastBudgetSlices.find((x) => x.key === key);
         if (s) showToast(`${s.icon} ${s.name}: ${fmt(s.v)} (${s.pct}%)`);
+      }
+
+      let activeBudgetIncomeKey = null;
+      function toggleBudgetIncomeList(key) {
+        activeBudgetIncomeKey = activeBudgetIncomeKey === key ? null : key;
+        renderBudgetIncomeList();
+        const panel = document.getElementById("budgetIncomePanel");
+        if (activeBudgetIncomeKey && panel)
+          panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function renderBudgetIncomeList() {
+        const panel = document.getElementById("budgetIncomePanel");
+        if (!panel) return;
+        const group = activeBudgetIncomeKey;
+        const b = group && BUDGET_GROUPS[group];
+        if (!b || !lastBudgetSlices.length) {
+          panel.style.display = "none";
+          panel.innerHTML = "";
+          return;
+        }
+        const rows = rowsForMonth(currentMonth);
+        const items = [];
+        const ratio = RATIO[group] || 0;
+
+        rows.forEach((r) => {
+          const jml = Number(r.jml || 0);
+          if (r.tipe === "pemasukan") {
+            if (r.alokasiManual) {
+              const g = r.alokasiGroup || groupOfKategori(r.kategori || "");
+              if (g === group)
+                items.push({
+                  tgl: r.tanggal,
+                  ket: r.ket || "Pemasukan",
+                  note: "Alokasi manual",
+                  val: jml,
+                  row: r,
+                });
+            } else if (ratio > 0) {
+              items.push({
+                tgl: r.tanggal,
+                ket: r.ket || "Pemasukan",
+                note: `${Math.round(ratio * 100)}% dari ${fmt(jml)}`,
+                val: jml * ratio,
+                row: r,
+              });
+            }
+          } else if (r.tipe === "pemasukan_tetap" && group === "k") {
+            items.push({
+              tgl: r.tanggal,
+              ket: r.ket || "Pemasukan Tetap",
+              note: "💙 Pemasukan tetap",
+              val: jml,
+              row: r,
+            });
+          } else if (r.tipe === "saldo_bulan_lalu") {
+            const g =
+              r.carryoverGroup || groupOfKategori(r.kategori || "Kebutuhan");
+            if (g === group)
+              items.push({
+                tgl: r.tanggal,
+                ket: r.ket || "Saldo bulan lalu",
+                note:
+                  "💛 Saldo bulan lalu · " +
+                  ((r.carryBucket || "bank") === "cash"
+                    ? "💵 Cash"
+                    : "🏦 Bank"),
+                val: jml,
+                row: r,
+              });
+          } else {
+            const ep = transferEndpoints(r);
+            if (ep && ep.fromGroup !== ep.toGroup) {
+              if (ep.toGroup === group)
+                items.push({
+                  tgl: r.tanggal,
+                  ket: r.ket || "Pindah saldo masuk",
+                  note: "🔄 Pindah saldo masuk",
+                  val: jml,
+                  row: r,
+                });
+              else if (ep.fromGroup === group)
+                items.push({
+                  tgl: r.tanggal,
+                  ket: r.ket || "Pindah saldo keluar",
+                  note: "🔄 Pindah saldo keluar",
+                  val: -jml,
+                  row: r,
+                });
+            }
+          }
+        });
+
+        items.sort((x, y) =>
+          String(y.tgl || "").localeCompare(String(x.tgl || "")),
+        );
+        const total = items.reduce((s, i) => s + i.val, 0);
+        const body = items.length
+          ? items
+              .map(
+                (i) => `
+          <div class="spend-detail-item"><span class="spend-detail-date">${i.tgl ? fmtDate(i.tgl) : "-"}</span><span class="spend-detail-ket">${escapeHtml(i.ket)}<div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${i.note}</div></span><span class="spend-detail-jml" style="color:${i.val < 0 ? "var(--coral)" : "var(--mint-700)"}">${i.val < 0 ? "-" : ""}${fmt(Math.abs(i.val))}</span></div>`,
+              )
+              .join("")
+          : `<div style="font-size:.7rem;color:var(--ink-3);padding:4px 0">Belum ada pemasukan untuk alokasi ini.</div>`;
+
+        panel.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:700;font-size:.8rem">
+            <span>${b.icon} Pemasukan · ${b.label}</span>
+            <span class="num">${fmt(total)}</span>
+          </div>
+          ${body}`;
+        panel.style.display = "";
       }
 
       function showSpendSliceInfo(key) {
@@ -5445,6 +5555,8 @@
           ctx.textBaseline = "middle";
           ctx.fillText("Belum ada pemasukan", cx, cy);
           legend.innerHTML = "";
+          lastBudgetSlices = [];
+          renderBudgetIncomeList();
           cv.onmousemove = null;
           cv.onclick = null;
           cv.ontouchstart = null;
@@ -5511,6 +5623,7 @@
           a += sw;
         });
         lastBudgetSlices = slices;
+        renderBudgetIncomeList();
 
         function render(activeKey) {
           ctx.clearRect(0, 0, W, H);
@@ -5569,6 +5682,7 @@
           const hit = findDonutHit(e, cv, slices, cx, cy, r, inner);
           if (hit) {
             showBudgetSliceInfo(hit.key);
+            toggleBudgetIncomeList(hit.key);
           }
         };
         cv.ontouchstart = (e) => {
@@ -5583,13 +5697,14 @@
               pt.clientY,
             );
             showBudgetSliceInfo(hit.key);
+            toggleBudgetIncomeList(hit.key);
             setTimeout(hideChartTooltip, 1800);
           }
         };
         legend.innerHTML = slices
           .map(
             (s) =>
-              `<div class="legend-item" onclick="showBudgetSliceInfo('${s.key}')"><div class="legend-dot" style="background:${s.c}"></div>${s.l}</div>`,
+              `<div class="legend-item" onclick="showBudgetSliceInfo('${s.key}');toggleBudgetIncomeList('${s.key}')"><div class="legend-dot" style="background:${s.c}"></div>${s.l}</div>`,
           )
           .join("");
       }
@@ -5602,7 +5717,6 @@
         drawBar();
         drawYearLine();
         drawSpendDonut();
-        drawIncomeList();
       }
 
       let barAnim = null;
@@ -6201,77 +6315,6 @@
           <span class="spend-caret">▼</span>
         </div>
         <div class="spend-detail" id="sd-${id}">${details || "<div style='font-size:.7rem;color:var(--ink-3);padding:4px 0'>Tidak ada transaksi</div>"}</div>`;
-          })
-          .join("");
-      }
-      function drawIncomeList() {
-        const rows = rowsForMonth(currentMonth);
-        const listEl = document.getElementById("incomeList"),
-          emptyEl = document.getElementById("incomeEmpty");
-        const inc = rows.filter(
-          (r) => r.tipe === "pemasukan" || r.tipe === "pemasukan_tetap",
-        );
-        const tot = inc.reduce((s, r) => s + Number(r.jml || 0), 0);
-        if (!tot) {
-          emptyEl.style.display = "";
-          listEl.innerHTML = "";
-          return;
-        }
-        emptyEl.style.display = "none";
-
-        // Kelompokkan: dibagi otomatis, alokasi manual per budget, pemasukan tetap
-        const groups = {};
-        const add = (key, name, icon, color, r) => {
-          if (!groups[key]) groups[key] = { key, name, icon, color, txs: [] };
-          groups[key].txs.push(r);
-        };
-        inc.forEach((r) => {
-          if (r.tipe === "pemasukan_tetap") {
-            add("tetap", "Pemasukan Tetap", "💙", "#67b7dc", r);
-          } else if (r.alokasiManual) {
-            const g = r.alokasiGroup || groupOfKategori(r.kategori || "");
-            const b = BUDGET_GROUPS[g];
-            if (b)
-              add(
-                "m-" + g,
-                "Manual · " + b.label,
-                b.icon,
-                BUDGET_GROUP_COLORS[g],
-                r,
-              );
-            else add("auto", "Dibagi Otomatis", "💜", "#8b7cf6", r);
-          } else {
-            add("auto", "Dibagi Otomatis", "💜", "#8b7cf6", r);
-          }
-        });
-        const list = Object.values(groups)
-          .map((g) => {
-            g.val = g.txs.reduce((s, r) => s + Number(r.jml || 0), 0);
-            g.pct = Math.round((g.val / tot) * 100);
-            return g;
-          })
-          .sort((a, b) => b.val - a.val);
-
-        listEl.innerHTML = list
-          .map((s) => {
-            const details = sortRowsNewestFirst(s.txs)
-              .map(
-                (r) => `
-        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket || "Pemasukan")}${r.alokasiManual && BUDGET_GROUPS[r.alokasiGroup] ? ` <span style="color:var(--ink-3)">(${escapeHtml(BUDGET_GROUPS[r.alokasiGroup].label)})</span>` : ""}</span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
-              )
-              .join("");
-            const id = "in-" + safeDomId(s.key);
-            return `
-        <div class="spend-row" id="sr-${id}" onclick="toggleSpendDetail('${id.replace(/^in-/, "in-")}')">
-          <div class="spend-icon">${s.icon}</div>
-          <div class="spend-info">
-            <div class="spend-name"><span>${s.name}</span><span class="pct">${s.pct}%</span></div>
-            <div class="spend-bar-bg"><div class="spend-bar-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
-          </div>
-          <div class="spend-val">${fmt(s.val)}</div>
-          <span class="spend-caret">▼</span>
-        </div>
-        <div class="spend-detail" id="sd-${id}">${details}</div>`;
           })
           .join("");
       }
