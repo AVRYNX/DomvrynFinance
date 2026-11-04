@@ -2481,7 +2481,7 @@
         <div class="modal-sheet">
           <div class="sheet-handle"></div>
           <div class="sheet-head">
-            <h3>📷 Scan Struk Belanja</h3>
+            <h3>📷 Scan Struk Belanja <span style="font-size:0.6rem;font-weight:600;color:var(--ink-3);background:var(--line);padding:2px 6px;border-radius:6px;vertical-align:middle">v3</span></h3>
             <button class="sheet-close" onclick="closeScanModal()">✕</button>
           </div>
 
@@ -2617,6 +2617,17 @@
                 color: var(--ink);
               "
             ></div>
+
+            <details
+              id="scanRawWrap"
+              style="display: none; margin: 8px 0; font-size: 0.68rem; color: var(--ink-3)"
+            >
+              <summary style="cursor: pointer">Lihat teks mentah hasil baca</summary>
+              <pre
+                id="scanRawText"
+                style="white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; font-size: 0.66rem; max-height: 160px; overflow: auto"
+              ></pre>
+            </details>
 
             <button
               class="btn-submit"
@@ -4975,7 +4986,10 @@
       /* ---------------- Scan Struk Belanja ---------------- */
       let scanItems = []; // {nama, harga, kat, aktif}
       let scanImageDataUrl = null;
+      let scanStrukTotal = 0; // total yang tertulis di struk (kalau terbaca)
       let tesseractLoadingPromise = null;
+      let tesseractWorker = null;
+      let scanLogger = null;
 
       function ensureTesseractLoaded() {
         if (window.Tesseract) return Promise.resolve();
@@ -4983,23 +4997,186 @@
         tesseractLoadingPromise = new Promise((resolve, reject) => {
           const s = document.createElement("script");
           s.src =
-            "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
           s.onload = () => resolve();
-          s.onerror = () =>
+          s.onerror = () => {
+            tesseractLoadingPromise = null; // boleh dicoba lagi
             reject(new Error("Gagal memuat mesin pembaca teks (OCR)."));
+          };
           document.head.appendChild(s);
         });
         return tesseractLoadingPromise;
+      }
+
+      // Worker dipakai ulang; bahasa Indonesia + Inggris (fallback Inggris saja)
+      async function getOcrWorker() {
+        await ensureTesseractLoaded();
+        if (tesseractWorker) return tesseractWorker;
+        const opts = { logger: (m) => scanLogger && scanLogger(m) };
+        try {
+          tesseractWorker = await Tesseract.createWorker(["ind", "eng"], 1, opts);
+        } catch (e) {
+          console.warn("Bahasa ind gagal dimuat, pakai eng saja", e);
+          tesseractWorker = await Tesseract.createWorker("eng", 1, opts);
+        }
+        await tesseractWorker.setParameters({
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+        });
+        return tesseractWorker;
+      }
+
+      function loadImageEl(src) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error("Gambar tidak bisa dibuka"));
+          img.src = src;
+        });
+      }
+
+      // Rapikan piksel struk (RGBA, diubah langsung):
+      // grayscale → hilangkan noise (blur halus) → normalisasi latar (buang bayangan /
+      // pencahayaan tidak merata) → regangkan kontras. Sengaja TIDAK dihitam-putihkan
+      // paksa karena bintik noise malah terbaca sebagai teks sampah.
+      function normalizeStrukPixels(px, cw, ch) {
+        const n = cw * ch;
+        const gray = new Uint8ClampedArray(n);
+        for (let i = 0, p = 0; i < n; i++, p += 4) {
+          gray[i] = (px[p] * 299 + px[p + 1] * 587 + px[p + 2] * 114) / 1000;
+        }
+
+        // 1) blur gaussian sigma 1.0 (separable)
+        const kern = [];
+        let ks = 0;
+        for (let d = -3; d <= 3; d++) {
+          const v = Math.exp(-(d * d) / 2);
+          kern.push(v);
+          ks += v;
+        }
+        for (let i = 0; i < kern.length; i++) kern[i] /= ks;
+        const tmp = new Float32Array(n);
+        for (let y = 0; y < ch; y++) {
+          const row = y * cw;
+          for (let x = 0; x < cw; x++) {
+            let s = 0;
+            for (let d = -3; d <= 3; d++) {
+              const xx = x + d < 0 ? 0 : x + d >= cw ? cw - 1 : x + d;
+              s += gray[row + xx] * kern[d + 3];
+            }
+            tmp[row + x] = s;
+          }
+        }
+        const blur = new Uint8ClampedArray(n);
+        for (let y = 0; y < ch; y++) {
+          for (let x = 0; x < cw; x++) {
+            let s = 0;
+            for (let d = -3; d <= 3; d++) {
+              const yy = y + d < 0 ? 0 : y + d >= ch ? ch - 1 : y + d;
+              s += tmp[yy * cw + x] * kern[d + 3];
+            }
+            blur[y * cw + x] = s;
+          }
+        }
+
+        // 2) estimasi latar (rata-rata lokal, jendela besar) lalu bagi
+        const W = cw + 1;
+        const integral = new Uint32Array(W * (ch + 1));
+        for (let y = 1; y <= ch; y++) {
+          let rowSum = 0;
+          for (let x = 1; x <= cw; x++) {
+            rowSum += blur[(y - 1) * cw + (x - 1)];
+            integral[y * W + x] = integral[(y - 1) * W + x] + rowSum;
+          }
+        }
+        const r = Math.max(20, Math.round(cw / 12));
+        const norm = new Uint8ClampedArray(n);
+        const hist = new Uint32Array(256);
+        for (let y = 0; y < ch; y++) {
+          const y0 = Math.max(0, y - r),
+            y1 = Math.min(ch - 1, y + r) + 1;
+          for (let x = 0; x < cw; x++) {
+            const x0 = Math.max(0, x - r),
+              x1 = Math.min(cw - 1, x + r) + 1;
+            const sum =
+              integral[y1 * W + x1] -
+              integral[y0 * W + x1] -
+              integral[y1 * W + x0] +
+              integral[y0 * W + x0];
+            const bg = sum / ((x1 - x0) * (y1 - y0));
+            const v = (blur[y * cw + x] * 235) / (bg < 1 ? 1 : bg);
+            const c = v > 255 ? 255 : v;
+            norm[y * cw + x] = c;
+            hist[norm[y * cw + x]]++;
+          }
+        }
+
+        // 3) regangkan kontras (abaikan 1% piksel terekstrem)
+        const cut = n * 0.01;
+        let lo = 0,
+          hi = 255,
+          acc = 0;
+        for (lo = 0; lo < 255; lo++) {
+          acc += hist[lo];
+          if (acc > cut) break;
+        }
+        acc = 0;
+        for (hi = 255; hi > 0; hi--) {
+          acc += hist[hi];
+          if (acc > cut) break;
+        }
+        if (hi - lo < 30) {
+          lo = 0;
+          hi = 255;
+        }
+        const range = hi - lo;
+        for (let i = 0, p = 0; i < n; i++, p += 4) {
+          const v = ((norm[i] - lo) * 255) / range;
+          px[p] = px[p + 1] = px[p + 2] = v;
+          px[p + 3] = 255;
+        }
+      }
+
+      // Resize ke ukuran ideal untuk OCR (lebar ~1600px) lalu rapikan piksel-nya.
+      async function preprocessStruk(src) {
+        const img = await loadImageEl(src);
+        const w = img.naturalWidth,
+          h = img.naturalHeight;
+        if (!w || !h) throw new Error("Ukuran gambar tidak valid");
+
+        let scale = 1;
+        if (w < 1400) scale = Math.min(1600 / w, 3);
+        else if (w > 2400) scale = 2200 / w;
+        const MAXPX = 6e6;
+        if (w * h * scale * scale > MAXPX) scale = Math.sqrt(MAXPX / (w * h));
+        const cw = Math.max(1, Math.round(w * scale));
+        const ch = Math.max(1, Math.round(h * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = cw;
+        canvas.height = ch;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingQuality = "high";
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(img, 0, 0, cw, ch);
+
+        const imgData = ctx.getImageData(0, 0, cw, ch);
+        normalizeStrukPixels(imgData.data, cw, ch);
+        ctx.putImageData(imgData, 0, 0);
+        return canvas;
       }
 
       function openScanModal() {
         if (!requireAuth()) return;
         scanItems = [];
         scanImageDataUrl = null;
+        scanStrukTotal = 0;
         document.getElementById("fScanImageCamera").value = "";
         document.getElementById("fScanImageGallery").value = "";
         document.getElementById("scanPreviewImg").style.display = "none";
         document.getElementById("scanItemsWrap").style.display = "none";
+        document.getElementById("scanRawWrap").style.display = "none";
         document.getElementById("scanProgress").textContent = "";
         document.getElementById("btnRunScan").disabled = true;
         document.getElementById("btnRunScan").style.opacity = 0.5;
@@ -5013,6 +5190,11 @@
 
       function closeScanModal() {
         document.getElementById("modalScan").classList.remove("show");
+        // lepas memori OCR (data bahasa tetap ter-cache di browser)
+        if (tesseractWorker) {
+          tesseractWorker.terminate().catch(() => {});
+          tesseractWorker = null;
+        }
       }
 
       function handleScanImageSelected(e) {
@@ -5031,38 +5213,247 @@
         reader.readAsDataURL(file);
       }
 
-      // Heuristik parsing baris struk: cari baris yang punya angka harga di
-      // ujung baris (format umum: "NAMA BARANG   12.000" atau "NAMA 2x5000").
-      // Baris ringkasan (subtotal/total/pajak/kembalian/tunai) dibuang supaya
-      // tidak ikut ke-input sebagai item belanja.
-      function parseStrukText(text) {
-        const SKIP_WORDS =
-          /\b(sub ?total|total|pajak|ppn|tax|kembali|kembalian|tunai|cash|bayar|change|diskon|discount|kasir|cashier|struk|receipt|no\.?\s*transaksi|npwp|nota|item|qty)\b/i;
-        const PRICE_RE = /(\d{1,3}(?:[.,]\d{3})+|\d{4,})\s*$/;
+      /* ---------- Parser teks struk ---------- */
+      // Baris ringkasan / header / footer yang bukan item belanja.
+      const STRUK_SKIP =
+        /sub\s*-?\s*total|\btotal\b|jumlah\s*(?:item|barang|belanja|bayar|tagihan)|\bppn\b|\bpajak\b|\btax\b|\bdpp\b|kembali|\btunai\b|\bcash\b|\bbayar\b|\bpembayaran\b|\bchange\b|\bdebit\b|\bkredit\b|\bcredit\b|\bqris\b|e-?money|\bgopay\b|\bovo\b|\bshopeepay\b|diskon|discount|\bdisc\b|potongan|\bhemat\b|\bpoin\b|\bpoints?\b|\bkasir\b|\bcashier\b|\bstruk\b|\breceipt\b|\bnpwp\b|\bnota\b|\binvoice\b|\bno\.?\s*(?:trans|struk|nota|ref|kartu|member|meja)|\bjl\b\.?|\bjalan\b|terima\s*kasih|thank|selamat\s*(?:datang|berbelanja)|\bmember\b|\bsaldo\b|\bkartu\b|\bapproval\b|\bwww\.|https?:|@\w+\.\w+|\bkritik\b|\bsaran\b/i;
+      const STRUK_DATE_RE =
+        /\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b/;
+      const STRUK_PHONE_RE =
+        /(?:\+?62|\b0)\s?8\d{1,3}[\s-]?\d{3,4}[\s-]?\d{3,5}\b|\b(?:telp|tlp|telepon|hp|wa|whatsapp|fax)\b/i;
+      // token yang boleh berada di antara nama barang dan harga (qty, "x", satuan)
+      const STRUK_TAIL_TOKEN =
+        /^(?:Rp\.?|[xX@*]|pcs|pc|bh|buah|\d{1,3}[xX]|[xX]\d{1,3}|\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d{1,7}(?:[.,]\d{1,2})?)$/i;
 
-        const lines = text
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(Boolean);
+      // Benerin angka yang salah baca OCR: O→0, l/I→1, S→5, B→8, Z→2
+      // (hanya untuk token yang isinya angka + huruf mirip angka, minimal 1 angka asli)
+      function fixDigitLookalikes(tok) {
+        const m = tok.match(/^(Rp\.?)?([0-9OoDQlIi|SsBZz.,]+)$/);
+        if (!m) return tok;
+        const body = m[2];
+        if (!/\d/.test(body) || body.replace(/[.,]/g, "").length < 3) return tok;
+        const fixed = body.replace(/[OoDQ]/g, "0").replace(/[lIi|]/g, "1").replace(/[Ss]/g, "5").replace(/B/g, "8").replace(/[Zz]/g, "2");
+        return (m[1] || "") + fixed;
+      }
 
-        const items = [];
-        for (const line of lines) {
-          if (SKIP_WORDS.test(line)) continue;
-          const m = line.match(PRICE_RE);
-          if (!m) continue;
-          let harga = Number(m[1].replace(/[.,]/g, ""));
-          if (!harga || harga < 100 || harga > 50000000) continue;
-
-          let nama = line.slice(0, m.index).trim();
-          // buang qty/prefix seperti "2x" "2 x" di depan nama
-          nama = nama.replace(/^\d+\s*[xX]\s*/, "").trim();
-          nama = nama.replace(/^[-•*]+\s*/, "").trim();
-          if (!nama || nama.length < 2) nama = "Item belanja";
-          if (nama.length > 40) nama = nama.slice(0, 40);
-
-          items.push({ nama, harga, kat: "Kebutuhan", aktif: true });
+      // "12.500" "12,500" "12.500,00" "Rp12.500" "12500" → angka rupiah; selain itu null
+      function parseMoneyToken(tok) {
+        let t = String(tok).replace(/^Rp\.?/i, "").replace(/[-.,:;*]+$/, "");
+        if (!t) return null;
+        let m = t.match(/^(\d{1,3}(?:[.,]\d{3})+)(?:[.,]\d{1,2})?$/);
+        if (m) {
+          if (m[1].startsWith("0")) return null; // "0,350" = berat, bukan harga
+          return Number(m[1].replace(/[.,]/g, ""));
         }
-        return items;
+        m = t.match(/^(\d{3,7})(?:[.,]\d{1,2})?$/);
+        if (m) return Number(m[1]);
+        return null;
+      }
+
+      function normalizeStrukLine(line) {
+        return String(line)
+          .replace(/\u00a0/g, " ")
+          .replace(/[×✕]/g, "x")
+          .replace(/[|¦]/g, " ")
+          .replace(/[^A-Za-z0-9\s.,&()\/%+\-'*@#:]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function cleanStrukName(s) {
+        let n = String(s);
+        n = n.replace(/^[-•*·.\s]+/, "");
+        n = n.replace(/^\d{1,2}[.)]\s+/, ""); // nomor urut "1." / "2)"
+        n = n.replace(/^\d{5,}\s+/, ""); // kode produk / PLU
+        n = n.replace(/[\s\-–:|~_.,*#@]+$/, "");
+        return n.replace(/\s+/g, " ").trim();
+      }
+
+      function strukTitleCase(s) {
+        if (/[a-z]/.test(s)) return s;
+        return s
+          .toLowerCase()
+          .replace(/(^|[\s\-\/(])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+      }
+
+      // Baris rincian dua-baris: "1x 2.000   2.000" · "0.3kg x 10.000   3.000"
+      // (nama barang ada di baris sebelumnya). qty boleh desimal + satuan berat.
+      const STRUK_DETAIL_RE =
+        /^([0-9OoIl]+(?:[.,][0-9Oo]+)?)\s*(kg|gram|gr|g|ons|ltr|liter|l|ml|pcs|pc|bh|buah|pak|btl|ikat)?\s*[xX@]\s*(?:Rp\.?\s*)?(\S+)\s+(?:Rp\.?\s*)?(\S+)$/i;
+
+      function parseStrukDetail(line) {
+        const m = line.match(STRUK_DETAIL_RE);
+        if (!m) return null;
+        const unit = parseMoneyToken(fixDigitLookalikes(m[3]));
+        const total = parseMoneyToken(fixDigitLookalikes(m[4]));
+        if (unit === null || total === null || total < 100 || total > 50000000) return null;
+        const qtyStr = m[1].replace(/[Oo]/g, "0").replace(/[Il]/g, "1").replace(",", ".");
+        const qty = parseFloat(qtyStr);
+        if (!isFinite(qty) || qty <= 0) return null;
+        let label = "";
+        if (m[2]) label = ` (${qtyStr}${m[2].toLowerCase()})`;
+        else if (qty !== 1) label = ` x${qtyStr}`;
+        return { harga: total, label };
+      }
+
+      // Baca satu baris → {nama, harga, qty} atau null kalau tidak ada harga di ujung baris.
+      // Mendukung:  "NAMA 12.500" · "NAMA 2 x 5.000 10.000" · "NAMA 2 5.000 10.000"
+      //             "2x NAMA 10.000" · "NAMA 12.500 T" · "NAMA Rp12.500,00"
+      function parseStrukLine(line) {
+        let tokens = line.split(" ").filter(Boolean).map(fixDigitLookalikes);
+        if (!tokens.length) return null;
+
+        // buang noise / flag pajak di ujung ("T", "*", "~")
+        while (tokens.length > 1 && /^[^\d\s]{1,2}$/.test(tokens[tokens.length - 1])) tokens.pop();
+        // flag menempel: "12.500T"
+        const lastTok = tokens[tokens.length - 1];
+        const fm = lastTok.match(/^(.*\d)[A-Za-z*#]$/);
+        if (fm && /[.,]/.test(fm[1]) && parseMoneyToken(fm[1]) !== null) tokens[tokens.length - 1] = fm[1];
+
+        const lastIdx = tokens.length - 1;
+        const total = parseMoneyToken(tokens[lastIdx]);
+        if (total === null || total < 100 || total > 50000000) return null;
+
+        // kumpulkan token qty / harga satuan di sebelum harga total
+        const tail = [];
+        for (let j = lastIdx - 1; j >= 0 && tail.length < 5 && STRUK_TAIL_TOKEN.test(tokens[j]); j--) {
+          tail.unshift({ i: j, t: tokens[j] });
+        }
+        const numOf = (t) => {
+          const s = t.replace(/^[xX@*]+|[xX@*]+$/g, "");
+          if (/^\d{1,3}$/.test(s)) return Number(s);
+          return parseMoneyToken(s);
+        };
+        const vals = tail.map((e) => ({ ...e, v: numOf(e.t) })).filter((e) => e.v !== null);
+        const approx = (a, b) => Math.abs(a - b) <= Math.max(1, b * 0.01);
+
+        let nameEnd = lastIdx;
+        let qty = 1;
+        let matched = false;
+
+        if (vals.length >= 2) {
+          const u = vals[vals.length - 1]; // harga satuan
+          for (let k = vals.length - 2; k >= 0 && !matched; k--) {
+            const q = vals[k];
+            if (Number.isInteger(q.v) && q.v >= 1 && q.v <= 99 && approx(q.v * u.v, total)) {
+              qty = q.v;
+              nameEnd = Math.min(q.i, u.i);
+              matched = true;
+            }
+          }
+        }
+        if (!matched && vals.length >= 1) {
+          const u = vals[vals.length - 1];
+          if (approx(u.v, total)) {
+            nameEnd = u.i; // harga satuan = total
+            matched = true;
+          } else if (u.v >= 100 && u.v < total) {
+            const q = Math.round(total / u.v);
+            if (q >= 2 && q <= 99 && approx(q * u.v, total)) {
+              qty = q;
+              nameEnd = u.i;
+              matched = true;
+            }
+          }
+        }
+        if (!matched) {
+          const e = tail.find((x) => /^\d{1,3}[xX]$/.test(x.t));
+          if (e) {
+            qty = parseInt(e.t, 10);
+            nameEnd = e.i;
+            matched = true;
+          } else {
+            const xi = tail.findIndex((x) => /^[xX@*]$/.test(x.t));
+            if (xi > 0 && /^\d{1,3}$/.test(tail[xi - 1].t)) {
+              qty = Number(tail[xi - 1].t);
+              nameEnd = tail[xi - 1].i;
+              matched = true;
+            }
+          }
+        }
+        // buang "Rp" / "x" yang tersisa tepat sebelum bagian harga
+        while (nameEnd > 0 && /^(?:Rp\.?|[xX@*])$/i.test(tokens[nameEnd - 1])) nameEnd--;
+
+        let nama = cleanStrukName(tokens.slice(0, nameEnd).join(" "));
+        // qty di depan nama: "2x INDOMIE"
+        const lm = nama.match(/^(\d{1,2})\s*[xX]\s+(.+)$/);
+        if (lm) {
+          if (qty === 1) qty = Number(lm[1]);
+          nama = cleanStrukName(lm[2]);
+        }
+        return { nama, harga: total, qty };
+      }
+
+      // Cari total belanja di struk (dipakai untuk mencocokkan hasil baca)
+      function extractStrukTotal(lines) {
+        const NOT_TOTAL = /tunai|cash|kembali|change|debit|kredit|credit|qris|e-?money|dibayar|jumlah\s*bayar/i;
+        const patterns = [
+          (l) => /grand\s*total/i.test(l),
+          (l) => /total\s*(?:belanja|bayar|tagihan|harga|akhir)/i.test(l),
+          (l) => /\btotal\b/i.test(l) && !/sub\s*-?\s*total|total\s*(?:item|qty|disk|disc|hemat|pajak|ppn|barang)/i.test(l),
+          (l) => /sub\s*-?\s*total/i.test(l),
+        ];
+        for (const test of patterns) {
+          let found = 0;
+          for (const l of lines) {
+            if (!test(l) || NOT_TOTAL.test(l)) continue;
+            const toks = l.split(" ").filter(Boolean).map(fixDigitLookalikes);
+            for (let i = toks.length - 1; i >= 0; i--) {
+              const v = parseMoneyToken(toks[i]);
+              if (v !== null && v >= 100) {
+                found = v;
+                break;
+              }
+            }
+          }
+          if (found) return found;
+        }
+        return 0;
+      }
+
+      // Parser utama: teks hasil OCR → {items, total, lines}
+      function parseStrukText(text) {
+        const lines = String(text || "")
+          .split(/\r?\n/)
+          .map(normalizeStrukLine)
+          .filter((l) => l.length > 1);
+
+        const total = extractStrukTotal(lines);
+        const items = [];
+        let pending = ""; // nama barang yang harganya ada di baris berikutnya
+
+        for (const line of lines) {
+          if (STRUK_SKIP.test(line) || STRUK_DATE_RE.test(line) || STRUK_PHONE_RE.test(line)) {
+            pending = "";
+            continue;
+          }
+          const d = parseStrukDetail(line);
+          if (d) {
+            if (pending) {
+              let nm = strukTitleCase(pending);
+              if (nm.length > 50) nm = nm.slice(0, 50).trim();
+              items.push({ nama: nm + d.label, harga: d.harga, kat: "Kebutuhan", aktif: true });
+            }
+            pending = "";
+            continue;
+          }
+          const r = parseStrukLine(line);
+          if (!r) {
+            pending = /[A-Za-z]{3,}/.test(line) ? cleanStrukName(line) : "";
+            continue;
+          }
+          let nama = r.nama;
+          if (!/[A-Za-z]{2,}/.test(nama)) {
+            if (!pending) continue; // harga tanpa nama & tanpa baris sebelumnya → abaikan
+            nama = pending;
+          }
+          pending = "";
+          nama = strukTitleCase(nama);
+          if (nama.length > 50) nama = nama.slice(0, 50).trim();
+          if (r.qty > 1) nama += " x" + r.qty;
+          items.push({ nama, harga: r.harga, kat: "Kebutuhan", aktif: true });
+        }
+        return { items, total, lines };
       }
 
       async function runScanOCR() {
@@ -5073,23 +5464,53 @@
         btn.style.opacity = 0.5;
         try {
           progress.textContent = "⏳ Menyiapkan mesin pembaca teks…";
-          await ensureTesseractLoaded();
+          scanLogger = (m) => {
+            if (m.status === "recognizing text") {
+              progress.textContent = `🔍 Membaca struk… ${Math.round((m.progress || 0) * 100)}%`;
+            } else if (m.status && /loading|initializ/i.test(m.status)) {
+              progress.textContent = "⏳ Menyiapkan mesin pembaca teks…";
+            }
+          };
+          const worker = await getOcrWorker();
 
-          progress.textContent = "🔍 Membaca teks dari struk…";
-          const result = await Tesseract.recognize(
-            scanImageDataUrl,
-            "ind+eng",
-            {
-              logger: (m) => {
-                if (m.status === "recognizing text") {
-                  progress.textContent = `🔍 Membaca struk… ${Math.round((m.progress || 0) * 100)}%`;
-                }
-              },
-            },
-          );
+          progress.textContent = "🧹 Merapikan foto struk…";
+          let processed = null;
+          try {
+            processed = await preprocessStruk(scanImageDataUrl);
+          } catch (e) {
+            console.warn("Pra-proses gambar gagal, pakai foto asli", e);
+          }
 
-          const text = result?.data?.text || "";
-          scanItems = parseStrukText(text);
+          // Pass 1: foto yang sudah dirapikan (blok teks per baris).
+          // Pass 2 (hanya kalau hasilnya sedikit): foto asli, mode kolom.
+          const passes = [];
+          if (processed) passes.push({ src: processed, psm: "6" });
+          passes.push({ src: scanImageDataUrl, psm: "4" });
+
+          // skor: hasil yang jumlah item-nya cocok dengan total struk menang telak
+          const scoreOf = (pr) =>
+            (pr.total && pr.items.reduce((s, it) => s + it.harga, 0) === pr.total ? 1000 : 0) +
+            pr.items.length;
+          let best = null;
+          let bestText = "";
+          for (const p of passes) {
+            await worker.setParameters({ tessedit_pageseg_mode: p.psm });
+            const { data } = await worker.recognize(p.src);
+            const text = data?.text || "";
+            const parsed = parseStrukText(text);
+            if (!best || scoreOf(parsed) > scoreOf(best)) {
+              best = parsed;
+              bestText = text;
+            }
+            if (scoreOf(best) >= 1000 || best.items.length >= 8) break;
+          }
+
+          scanItems = best.items;
+          scanStrukTotal = best.total || 0;
+
+          const rawWrap = document.getElementById("scanRawWrap");
+          document.getElementById("scanRawText").textContent = bestText.trim() || "(kosong)";
+          rawWrap.style.display = "";
 
           if (!scanItems.length) {
             showToast(
@@ -5150,16 +5571,27 @@
       }
 
       function updateScanTotalPreview() {
-        const total = scanItems
-          .filter((it) => it.aktif && it.nama.trim() && it.harga > 0)
-          .reduce((s, it) => s + it.harga, 0);
-        const count = scanItems.filter(
+        const valid = scanItems.filter(
           (it) => it.aktif && it.nama.trim() && it.harga > 0,
-        ).length;
-        document.getElementById("scanTotalPreview").textContent =
-          count > 0
-            ? `Total ${count} item: ${fmt(total)}`
+        );
+        const total = valid.reduce((s, it) => s + it.harga, 0);
+        let txt =
+          valid.length > 0
+            ? `Total ${valid.length} item: ${fmt(total)}`
             : "Belum ada item valid";
+        if (scanStrukTotal > 0) {
+          const diff = scanStrukTotal - total;
+          txt += `\nTotal di struk: ${fmt(scanStrukTotal)}`;
+          if (valid.length > 0) {
+            txt +=
+              diff === 0
+                ? " ✓ cocok"
+                : ` · selisih ${fmt(Math.abs(diff))}, cek lagi item-nya`;
+          }
+        }
+        const el = document.getElementById("scanTotalPreview");
+        el.style.whiteSpace = "pre-line";
+        el.textContent = txt;
       }
 
       function renderScanItemsList() {
