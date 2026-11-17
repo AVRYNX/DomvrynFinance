@@ -2219,6 +2219,55 @@
         height: 24px;
         accent-color: var(--mint-700);
       }
+      .tgt-period {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 6px;
+        align-items: end;
+        background: #fff;
+        border: 1.5px solid var(--line);
+        border-radius: var(--r-sm);
+        padding: 10px;
+        margin-bottom: 8px;
+      }
+      .tgt-period .amt {
+        grid-column: 1 / -1;
+      }
+      .tgt-period label {
+        display: block;
+        font-size: 0.58rem;
+        font-weight: 700;
+        color: var(--ink-3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 3px;
+      }
+      .tgt-period input {
+        width: 100%;
+        background: var(--mint-50);
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 9px;
+        font-family: inherit;
+        font-size: 0.8rem;
+        color: var(--ink);
+      }
+      .tgt-period .del {
+        border: none;
+        background: var(--coral-soft);
+        color: #d6334a;
+        font-weight: 800;
+        border-radius: 10px;
+        height: 34px;
+        width: 34px;
+        cursor: pointer;
+      }
+      .daily-note {
+        margin-top: 6px;
+        font-size: 0.64rem;
+        color: var(--ink-3);
+        font-weight: 600;
+      }
       .tgt-save {
         width: 100%;
         border: none;
@@ -3131,7 +3180,9 @@
           </label>
 
           <div class="field">
-            <label for="tgtAmount">Batas pengeluaran per hari (Rp)</label>
+            <label for="tgtAmount"
+              >Batas standar per hari (Rp) · berlaku seterusnya</label
+            >
             <input
               id="tgtAmount"
               type="text"
@@ -3139,6 +3190,20 @@
               placeholder="contoh: 50.000"
               oninput="formatJumlahInput(this)"
             />
+          </div>
+
+          <div class="tgt-block" style="background: #faf8ff">
+            <h4>📅 Batas khusus per periode</h4>
+            <div class="tgt-hint" style="margin-top: 0">
+              Contoh: Rp 25.000 dari 17 Nov sampai 30 Nov. Kosongkan
+              <b>tanggal akhir</b> kalau berlaku seterusnya. Di luar periode,
+              dipakai batas standar di atas. Kalau periodenya tumpang tindih,
+              yang mulainya paling baru yang dipakai.
+            </div>
+            <div id="tgtPeriods"></div>
+            <button class="tgt-btn" type="button" onclick="tgtAddPeriod()">
+              + Tambah periode
+            </button>
           </div>
 
           <div class="tgt-hint">
@@ -3236,8 +3301,10 @@
           </div>
 
           <div class="tgt-hint" style="margin-top: 0">
-            <b>Widget di layar HP:</b> buka link widget lalu pilih
-            <i>Tambahkan ke Layar Utama</i> di browser. Link:
+            <b>Ikon di layar utama HP:</b> salin link widget, buka di Chrome
+            (Android) atau Safari (iPhone), lalu menu ⋮ / tombol Bagikan →
+            <i>Tambahkan ke Layar Utama</i>. Ikon itu langsung membuka target
+            harian layar penuh. Link:
             <span id="tgtWidgetLink" style="word-break: break-all"></span>
           </div>
           <div class="tgt-btns" style="margin-bottom: 14px">
@@ -7750,6 +7817,7 @@
       const DEFAULT_DAILY = {
         enabled: false,
         amount: 0,
+        periods: [], // batas khusus per periode: {id, amount, start, end}
         over: {
           img: "",
           title: "Hey, jangan boros! 😠",
@@ -7773,6 +7841,15 @@
         if (!raw || typeof raw !== "object") return base;
         base.enabled = !!raw.enabled;
         base.amount = Math.max(0, Number(raw.amount) || 0);
+        const dre = /^\d{4}-\d{2}-\d{2}$/;
+        base.periods = (Array.isArray(raw.periods) ? raw.periods : [])
+          .map((p, i) => ({
+            id: Number(p && p.id) || Date.now() + i,
+            amount: Math.max(0, Number(p && p.amount) || 0),
+            start: p && dre.test(p.start) ? p.start : "",
+            end: p && dre.test(p.end) ? p.end : "",
+          }))
+          .filter((p) => p.amount > 0 && p.start);
         ["over", "safe"].forEach((k) => {
           const r = raw[k] || {};
           if (typeof r.img === "string") base[k].img = r.img;
@@ -7820,17 +7897,41 @@
           String(n.getDate()).padStart(2, "0")
         );
       }
+      // Batas yang berlaku pada suatu tanggal: periode khusus (kalau ada),
+      // kalau tidak ada pakai batas standar yang berlaku seterusnya.
+      function targetForDate(dateStr) {
+        let best = null;
+        (dailyTarget.periods || []).forEach((p) => {
+          if (
+            p.amount > 0 &&
+            p.start <= dateStr &&
+            (!p.end || dateStr <= p.end) &&
+            (!best || p.start > best.start)
+          )
+            best = p;
+        });
+        if (best)
+          return { amount: best.amount, until: best.end || "", special: true };
+        return {
+          amount: Number(dailyTarget.amount) || 0,
+          until: "",
+          special: false,
+        };
+      }
       function dailyStats() {
         const today = localToday();
         const used = data
           .filter((r) => r.tipe === "pengeluaran" && r.tanggal === today)
           .reduce((s, r) => s + Number(r.jml || 0), 0);
-        const target = Number(dailyTarget.amount) || 0;
+        const tg = targetForDate(today);
+        const target = tg.amount;
         const ready = dailyTarget.enabled && target > 0;
         const status = !ready ? "none" : used > target ? "over" : "safe";
         return {
           used,
           target,
+          until: tg.until,
+          special: tg.special,
           ready,
           status,
           sisa: Math.max(0, target - used),
@@ -7878,7 +7979,16 @@
           <div class="daily-nums num">
             <span>Terpakai ${fmt(st.used)}</span>
             <span>Target ${fmt(st.target)}</span>
-          </div>`;
+          </div>
+          ${
+            st.special
+              ? `<div class="daily-note">📅 Batas khusus ${
+                  st.until
+                    ? "berlaku sampai " + fmtDate(st.until)
+                    : "berlaku seterusnya"
+                }</div>`
+              : ""
+          }`;
       }
       function renderDailyTarget() {
         const st = dailyStats();
@@ -7970,11 +8080,69 @@
             : "";
           tgtSetThumb(k);
         });
+        tgtRenderPeriods();
         document.getElementById("tgtWidgetLink").textContent = widgetLink();
         document.getElementById("modalTarget").classList.add("show");
       }
       function closeTargetModal() {
         document.getElementById("modalTarget").classList.remove("show");
+      }
+      function endOfMonthStr() {
+        const n = new Date();
+        const d = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+        return (
+          d.getFullYear() +
+          "-" +
+          String(d.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(d.getDate()).padStart(2, "0")
+        );
+      }
+      function tgtRenderPeriods() {
+        const el = document.getElementById("tgtPeriods");
+        if (!el || !tgtDraft) return;
+        el.innerHTML = (tgtDraft.periods || [])
+          .map(
+            (p, i) => `<div class="tgt-period">
+              <div class="amt">
+                <label>Batas per hari (Rp)</label>
+                <input type="text" inputmode="numeric" value="${p.amount ? Number(p.amount).toLocaleString("id-ID") : ""}"
+                  oninput="tgtPeriodField(${i},'amount',this)" />
+              </div>
+              <div><label>Mulai</label>
+                <input type="date" value="${escapeHtml(p.start)}" onchange="tgtPeriodField(${i},'start',this)" /></div>
+              <div><label>Sampai (opsional)</label>
+                <input type="date" value="${escapeHtml(p.end)}" onchange="tgtPeriodField(${i},'end',this)" /></div>
+              <button class="del" type="button" onclick="tgtDelPeriod(${i})" aria-label="Hapus">✕</button>
+            </div>`,
+          )
+          .join("");
+      }
+      function tgtAddPeriod() {
+        const base = parseJumlahInput(document.getElementById("tgtAmount"));
+        tgtDraft.periods = tgtDraft.periods || [];
+        tgtDraft.periods.push({
+          id: Date.now(),
+          amount: isNaN(base) ? 0 : base,
+          start: localToday(),
+          end: endOfMonthStr(),
+        });
+        tgtRenderPeriods();
+      }
+      function tgtDelPeriod(i) {
+        tgtDraft.periods.splice(i, 1);
+        tgtRenderPeriods();
+      }
+      function tgtPeriodField(i, field, el) {
+        const p = tgtDraft.periods[i];
+        if (!p) return;
+        if (field === "amount") {
+          formatJumlahInput(el);
+          const v = parseJumlahInput(el);
+          p.amount = isNaN(v) ? 0 : v;
+        } else {
+          p[field] = el.value || "";
+        }
       }
       function tgtPick(kind) {
         document
@@ -8028,13 +8196,31 @@
       async function saveTargetSettings() {
         const amount = parseJumlahInput(document.getElementById("tgtAmount"));
         const enabled = document.getElementById("tgtEnabled").checked;
-        if (enabled && !(amount > 0)) {
+        const periods = tgtDraft.periods || [];
+        for (const p of periods) {
+          if (!(p.amount > 0) || !p.start) {
+            showToast(
+              "⚠️ Periode harus punya batas (Rp) dan tanggal mulai",
+              true,
+            );
+            return;
+          }
+          if (p.end && p.end < p.start) {
+            showToast(
+              "⚠️ Tanggal akhir tidak boleh sebelum tanggal mulai",
+              true,
+            );
+            return;
+          }
+        }
+        if (enabled && !(amount > 0) && !periods.length) {
           showToast("⚠️ Isi batas pengeluaran harian dulu", true);
           return;
         }
         dailyTarget = mergeDaily({
           enabled,
           amount: isNaN(amount) ? 0 : amount,
+          periods,
           over: {
             img: tgtDraft.over.img,
             title: document.getElementById("tgtTitleOver").value.trim(),
@@ -8053,11 +8239,62 @@
         showToast("✓ Target harian disimpan");
         await saveDailyRemote();
       }
+      // Saat dibuka lewat link widget, jadikan halaman ini "aplikasi" sendiri
+      // supaya ikon di layar utama membuka tampilan target layar penuh.
+      function setupWidgetShortcut() {
+        try {
+          document.title = "Target Harian";
+          const svg =
+            "data:image/svg+xml," +
+            encodeURIComponent(
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="110" fill="#6d5dfc"/><text x="256" y="350" font-size="300" text-anchor="middle">🎯</text></svg>',
+            );
+          const manifest = {
+            name: "Target Harian DOMVRYN",
+            short_name: "Target Harian",
+            start_url: location.href,
+            display: "standalone",
+            background_color: "#2f2748",
+            theme_color: "#6d5dfc",
+            icons: [
+              {
+                src: svg,
+                sizes: "512x512",
+                type: "image/svg+xml",
+                purpose: "any",
+              },
+            ],
+          };
+          const url = URL.createObjectURL(
+            new Blob([JSON.stringify(manifest)], {
+              type: "application/manifest+json",
+            }),
+          );
+          const link = document.createElement("link");
+          link.rel = "manifest";
+          link.href = url;
+          document.head.appendChild(link);
+          [
+            ["apple-mobile-web-app-capable", "yes"],
+            ["mobile-web-app-capable", "yes"],
+            ["apple-mobile-web-app-title", "Target Harian"],
+          ].forEach(([n, c]) => {
+            const m = document.createElement("meta");
+            m.name = n;
+            m.content = c;
+            document.head.appendChild(m);
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
       function initDailyTarget() {
         const params = new URLSearchParams(location.search);
         if (params.get("widget") === "1") {
           document.body.classList.add("widget-mode");
           document.getElementById("widgetView").classList.add("show");
+          setupWidgetShortcut();
         }
         renderDailyTarget();
         setInterval(renderDailyTarget, 60000);
