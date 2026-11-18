@@ -2398,9 +2398,26 @@
                   height: 150px;
                   display: block;
                   touch-action: pan-y;
-                  cursor: default;
+                  cursor: pointer;
                 "
               ></canvas>
+              <div
+                id="dailyBudgetTip"
+                style="
+                  position: absolute;
+                  display: none;
+                  background: rgba(39, 34, 56, 0.94);
+                  color: #fff;
+                  font-family: &quot;DM Mono&quot;, monospace;
+                  font-size: 0.6rem;
+                  line-height: 1.5;
+                  padding: 6px 9px;
+                  border-radius: 8px;
+                  pointer-events: none;
+                  white-space: nowrap;
+                  z-index: 5;
+                "
+              ></div>
             </div>
             <div
               style="
@@ -5130,7 +5147,10 @@
             b.classList.toggle("active", b.dataset.target === name),
           );
         document.querySelector(".screens").scrollTop = 0;
-        if (name === "report") drawBar();
+        if (name === "report") {
+          drawBar();
+          drawDailyBudget();
+        }
       }
 
       /* ---------------- add-transaction modal ---------------- */
@@ -6974,6 +6994,9 @@
       }
 
       let dailyBudgetListOpen = false;
+      let dailyBudgetSel = null;
+      let dailyBudgetDays = [];
+      let dailyBudgetGeo = null;
       let dailyBudgetRO = null;
       function shortDate(tgl) {
         return fmtDate(tgl).replace(/\s\d{4}$/, "");
@@ -6999,7 +7022,11 @@
           let lastW = 0;
           dailyBudgetRO = new ResizeObserver(() => {
             const w = wrap.clientWidth;
-            if (w && w !== lastW) {
+            if (!w) {
+              lastW = 0;
+              return;
+            }
+            if (w !== lastW) {
               lastW = w;
               drawDailyBudget();
             }
@@ -7007,7 +7034,10 @@
           dailyBudgetRO.observe(wrap);
         }
 
+        const tipEl = document.getElementById("dailyBudgetTip");
+        if (tipEl) tipEl.style.display = "none";
         if (!currentMonth) {
+          dailyBudgetGeo = null;
           if (hintEl) hintEl.innerHTML = "";
           sumEl.innerHTML = `<div class="daily-note">Pilih satu bulan dulu untuk melihat grafik harian.</div>`;
           cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
@@ -7039,6 +7069,10 @@
           });
         }
 
+        dailyBudgetDays = days;
+        if (dailyBudgetSel && dailyBudgetSel.slice(0, 7) !== currentMonth)
+          dailyBudgetSel = null;
+
         // ---------- keterangan batas per rentang tanggal ----------
         if (hintEl) {
           const segs = [];
@@ -7048,16 +7082,19 @@
             else segs.push({ from: x.d, to: x.d, batas: x.batas });
           });
           const bln = shortDate(currentMonth + "-01").replace(/^\d+\s/, "");
-          hintEl.innerHTML = segs.some((g) => g.batas > 0)
-            ? "🟡 Batas harian (sesuai Target Hari Ini): " +
-              segs
-                .filter((g) => g.batas > 0)
-                .map(
-                  (g) =>
-                    `<b class="num">${g.from === g.to ? g.from : g.from + "–" + g.to} ${bln}: ${fmt(g.batas)}</b>`,
-                )
-                .join(" · ")
-            : "";
+          const tapTxt = `<div style="color:var(--ink-3)">👆 Ketuk batang untuk lihat rinciannya</div>`;
+          hintEl.innerHTML =
+            tapTxt +
+            (segs.some((g) => g.batas > 0)
+              ? "🟡 Batas harian (sesuai Target Hari Ini): " +
+                segs
+                  .filter((g) => g.batas > 0)
+                  .map(
+                    (g) =>
+                      `<b class="num">${g.from === g.to ? g.from : g.from + "–" + g.to} ${bln}: ${fmt(g.batas)}</b>`,
+                  )
+                  .join(" · ")
+              : "");
         }
 
         // ---------- canvas ----------
@@ -7086,9 +7123,17 @@
                 ? Math.round(v / 1000) + "rb"
                 : String(Math.round(v));
 
+          dailyBudgetGeo = { padL, slot, n: nDays, padT, chartH, yOf, W };
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.clearRect(0, 0, W, H);
           ctx.font = '8px "DM Mono",monospace';
+          const si = dailyBudgetSel
+            ? days.findIndex((x) => x.tgl === dailyBudgetSel)
+            : -1;
+          if (si >= 0) {
+            ctx.fillStyle = "rgba(109,93,252,.12)";
+            ctx.fillRect(padL + slot * si, padT, slot, chartH);
+          }
           // grid + sumbu Y (3 tick)
           ctx.textAlign = "right";
           ctx.textBaseline = "middle";
@@ -7136,6 +7181,15 @@
           });
           ctx.stroke();
           ctx.setLineDash([]);
+          // angka batas di awal tiap rentang (kelihatan kalau batas berubah)
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          ctx.fillStyle = "#C98A1B";
+          days.forEach((x, i) => {
+            const prev = days[i - 1];
+            if (x.batas > 0 && (!prev || prev.batas !== x.batas))
+              ctx.fillText(lbl(x.batas), padL + slot * i + 2, yOf(x.batas) - 2);
+          });
           // label tanggal (1, 5, 10, ...)
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
@@ -7149,6 +7203,52 @@
               );
             }
           });
+        }
+
+        // ---------- interaksi: ketuk / arahkan ke batang ----------
+        if (!cv._dbBound) {
+          cv._dbBound = true;
+          const pick = (e) => {
+            const g = dailyBudgetGeo;
+            if (!g) return;
+            const rect = cv.getBoundingClientRect();
+            const i = Math.floor((e.clientX - rect.left - g.padL) / g.slot);
+            if (i < 0 || i >= g.n) return;
+            const tgl = dailyBudgetDays[i].tgl;
+            if (e.type === "pointerdown")
+              dailyBudgetSel = dailyBudgetSel === tgl ? null : tgl;
+            else if (dailyBudgetSel !== tgl) dailyBudgetSel = tgl;
+            else return;
+            drawDailyBudget();
+          };
+          cv.addEventListener("pointerdown", pick);
+          cv.addEventListener("pointermove", (e) => {
+            if (e.pointerType === "mouse") pick(e);
+          });
+          cv.addEventListener("pointerleave", (e) => {
+            if (e.pointerType === "mouse" && dailyBudgetSel) {
+              dailyBudgetSel = null;
+              drawDailyBudget();
+            }
+          });
+        }
+        const sd = days.find((x) => x.tgl === dailyBudgetSel);
+        if (sd && tipEl && dailyBudgetGeo) {
+          const g = dailyBudgetGeo;
+          tipEl.innerHTML =
+            `<b>${escapeHtml(fmtDate(sd.tgl))}</b><br>Terpakai ${fmt(sd.used)}<br>` +
+            (sd.batas > 0
+              ? `Batas ${fmt(sd.batas)}<br>` +
+                (sd.over ? `⚠️ Lebih ${fmt(sd.lebih)}` : `✓ Aman`)
+              : "Belum ada batas");
+          tipEl.style.display = "block";
+          const cx = g.padL + g.slot * (sd.d - 1) + g.slot / 2;
+          const tw = tipEl.offsetWidth,
+            th = tipEl.offsetHeight;
+          tipEl.style.left =
+            Math.max(0, Math.min(cx - tw / 2, g.W - tw)) + "px";
+          const barTop = g.yOf(Math.max(sd.used, sd.batas));
+          tipEl.style.top = Math.max(0, barTop - th - 6) + "px";
         }
 
         // ---------- ringkasan ----------
