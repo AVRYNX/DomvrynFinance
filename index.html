@@ -2388,46 +2388,47 @@
           <div class="section-title" id="titleDailyBudget">
             Pengeluaran Harian vs Batas
           </div>
-          <div class="card bar-card">
-            <div style="position: relative">
+          <div class="card" style="padding: 12px 10px; overflow: hidden">
+            <div id="dailyBudgetWrap" style="position: relative; width: 100%">
               <canvas
                 id="dailyBudgetCanvas"
-                height="200"
-                style="width: 100%; display: block; cursor: pointer"
-              ></canvas>
-              <div
-                id="dailyBudgetTip"
+                height="150"
                 style="
-                  position: absolute;
-                  display: none;
-                  background: rgba(21, 48, 44, 0.92);
-                  color: #fff;
-                  font-family: &quot;DM Mono&quot;, monospace;
-                  font-size: 0.62rem;
-                  padding: 6px 9px;
-                  border-radius: 8px;
-                  pointer-events: none;
-                  white-space: nowrap;
-                  z-index: 5;
+                  width: 100%;
+                  height: 150px;
+                  display: block;
+                  touch-action: pan-y;
+                  cursor: pointer;
                 "
-              ></div>
+              ></canvas>
             </div>
             <div
               style="
                 display: flex;
-                gap: 12px;
+                gap: 10px;
                 justify-content: center;
                 flex-wrap: wrap;
-                font-size: 0.66rem;
+                font-size: 0.6rem;
                 color: var(--ink-2);
                 margin-top: 6px;
               "
             >
-              <span>🟣 Sesuai batas</span>
-              <span>🌸 Melebihi batas</span>
-              <span>🟡 Garis batas harian</span>
+              <span>🟣 Aman</span>
+              <span>🌸 Lebih dari batas</span>
+              <span>🟡 Batas harian</span>
             </div>
-            <div id="dailyBudgetSummary" style="margin-top: 12px"></div>
+            <div
+              style="
+                font-size: 0.58rem;
+                color: var(--ink-3);
+                text-align: center;
+                margin-top: 3px;
+              "
+            >
+              👆 Ketuk batang untuk lihat atau ubah batas hari itu
+            </div>
+            <div id="dailyBudgetEdit"></div>
+            <div id="dailyBudgetSummary"></div>
           </div>
 
           <div class="section-title" id="titleTrenTahunan">
@@ -6973,17 +6974,75 @@
         drawSpendDonut();
       }
 
-      let dailyBudgetState = null;
+      let dailyBudgetSel = null;
+      let dailyBudgetListOpen = false;
+      let dailyBudgetDays = [];
+      let dailyBudgetGeo = null;
+      let dailyBudgetRO = null;
+      function shortDate(tgl) {
+        return fmtDate(tgl).replace(/\s\d{4}$/, "");
+      }
+      function dbToggleList() {
+        dailyBudgetListOpen = !dailyBudgetListOpen;
+        drawDailyBudget();
+      }
+      function dbSelectDay(tgl) {
+        dailyBudgetSel = tgl;
+        drawDailyBudget();
+      }
+      async function dbAfterChange(msg) {
+        saveDailyLocal();
+        dailyPrevStatus = dailyStats().status;
+        renderDailyTarget();
+        drawDailyBudget();
+        showToast(msg);
+        await saveDailyRemote();
+      }
+      async function dbSaveOverride() {
+        if (!requireAuth() || !dailyBudgetSel) return;
+        const v = parseJumlahInput(document.getElementById("dbInput"));
+        if (isNaN(v) || !(v > 0)) {
+          showToast("⚠️ Isi batas (Rp) lebih dari 0", true);
+          return;
+        }
+        dailyTarget.overrides = dailyTarget.overrides || {};
+        dailyTarget.overrides[dailyBudgetSel] = v;
+        await dbAfterChange(
+          "✓ Batas " + shortDate(dailyBudgetSel) + " disimpan",
+        );
+      }
+      async function dbResetOverride() {
+        if (!requireAuth() || !dailyBudgetSel) return;
+        if (dailyTarget.overrides) delete dailyTarget.overrides[dailyBudgetSel];
+        await dbAfterChange("✓ Batas dikembalikan ke standar");
+      }
+
       function drawDailyBudget() {
         const cv = document.getElementById("dailyBudgetCanvas");
+        const wrap = document.getElementById("dailyBudgetWrap");
         const sumEl = document.getElementById("dailyBudgetSummary");
+        const editEl = document.getElementById("dailyBudgetEdit");
         const titleEl = document.getElementById("titleDailyBudget");
-        const tip = document.getElementById("dailyBudgetTip");
-        if (!cv || !sumEl) return;
+        if (!cv || !wrap || !sumEl || !editEl) return;
+
+        // redraw otomatis saat lebar berubah / layar Laporan baru terlihat
+        if (!dailyBudgetRO && window.ResizeObserver) {
+          let lastW = 0;
+          dailyBudgetRO = new ResizeObserver(() => {
+            const w = wrap.clientWidth;
+            if (w && w !== lastW) {
+              lastW = w;
+              drawDailyBudget();
+            }
+          });
+          dailyBudgetRO.observe(wrap);
+        }
+
         if (!currentMonth) {
+          editEl.innerHTML = "";
           sumEl.innerHTML = `<div class="daily-note">Pilih satu bulan dulu untuk melihat grafik harian.</div>`;
           cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
-          dailyBudgetState = null;
+          dailyBudgetGeo = null;
           return;
         }
         if (titleEl)
@@ -7011,55 +7070,66 @@
             lebih: batas > 0 ? Math.max(0, used - batas) : 0,
           });
         }
-        dailyBudgetState = { days, sel: null };
+        dailyBudgetDays = days;
+        if (dailyBudgetSel && dailyBudgetSel.slice(0, 7) !== currentMonth)
+          dailyBudgetSel = null;
 
-        // ---- canvas ----
-        const dpr = window.devicePixelRatio || 1;
-        const W = cv.offsetWidth || 360,
-          H = 200,
-          padT = 14,
-          padB = 24,
-          padL = 40,
-          padR = 8;
-        cv.width = W * dpr;
-        cv.height = H * dpr;
-        cv.style.width = W + "px";
-        cv.style.height = H + "px";
-        const ctx = cv.getContext("2d");
-        const chartW = W - padL - padR,
-          chartH = H - padT - padB;
-        const slot = chartW / nDays;
-        const barW = Math.max(3, slot * 0.68);
-        const mx =
-          Math.max(1, ...days.map((x) => Math.max(x.used, x.batas))) * 1.1;
-        const yOf = (v) => padT + chartH - (v / mx) * chartH;
-        const lbl = (v) =>
-          v >= 1000000
-            ? (v / 1000000).toFixed(1) + "jt"
-            : v >= 1000
-              ? (v / 1000).toFixed(0) + "rb"
-              : String(Math.round(v));
+        // ---------- canvas ----------
+        const W = wrap.clientWidth;
+        if (W > 0) {
+          const dpr = window.devicePixelRatio || 1;
+          const H = 150,
+            padT = 8,
+            padB = 18,
+            padL = 32,
+            padR = 4;
+          cv.width = Math.round(W * dpr);
+          cv.height = Math.round(H * dpr);
+          const ctx = cv.getContext("2d");
+          const chartW = W - padL - padR,
+            chartH = H - padT - padB;
+          const slot = chartW / nDays;
+          const barW = Math.max(3, Math.min(14, slot * 0.66));
+          const mx =
+            Math.max(1, ...days.map((x) => Math.max(x.used, x.batas))) * 1.08;
+          const yOf = (v) => padT + chartH - (v / mx) * chartH;
+          const lbl = (v) =>
+            v >= 1000000
+              ? (v / 1000000).toFixed(1) + "jt"
+              : v >= 1000
+                ? Math.round(v / 1000) + "rb"
+                : String(Math.round(v));
+          dailyBudgetGeo = { padL, slot, n: nDays };
 
-        function paint(sel) {
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.scale(dpr, dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.clearRect(0, 0, W, H);
-          ctx.font = '9px "DM Mono",monospace';
+          ctx.font = '8px "DM Mono",monospace';
+          // kolom hari terpilih
+          const si = dailyBudgetSel
+            ? days.findIndex((x) => x.tgl === dailyBudgetSel)
+            : -1;
+          if (si >= 0) {
+            ctx.fillStyle = "rgba(109,93,252,.12)";
+            ctx.fillRect(padL + slot * si, padT, slot, chartH);
+          }
+          // grid + sumbu Y (3 tick)
           ctx.textAlign = "right";
           ctx.textBaseline = "middle";
-          for (let i = 0; i <= 4; i++) {
-            const v = (mx / 4) * i,
+          for (let i = 0; i <= 2; i++) {
+            const v = (mx / 2) * i,
               y = yOf(v);
             ctx.beginPath();
-            ctx.strokeStyle = "rgba(21,48,44,.08)";
-            ctx.moveTo(padL - 4, y);
+            ctx.strokeStyle = "rgba(39,34,56,.08)";
+            ctx.lineWidth = 1;
+            ctx.moveTo(padL, y);
             ctx.lineTo(W - padR, y);
             ctx.stroke();
             ctx.fillStyle = "#AAA2B8";
-            ctx.fillText(lbl(v), padL - 8, y);
+            ctx.fillText(lbl(v), padL - 5, y);
           }
-          // bar
+          // batang
           days.forEach((x, i) => {
+            if (x.used <= 0) return;
             const cx = padL + slot * i + slot / 2;
             const y = yOf(x.used);
             ctx.fillStyle = x.over
@@ -7067,20 +7137,13 @@
               : x.batas > 0
                 ? "#8B7CF6"
                 : "#DDD6FE";
-            if (x.used > 0)
-              ctx.fillRect(cx - barW / 2, y, barW, padT + chartH - y);
-            if (sel === i) {
-              ctx.strokeStyle = "#272238";
-              ctx.lineWidth = 1.5;
-              ctx.strokeRect(cx - barW / 2 - 1, padT, barW + 2, chartH);
-              ctx.lineWidth = 1;
-            }
+            ctx.fillRect(cx - barW / 2, y, barW, padT + chartH - y);
           });
-          // garis batas (bertingkat kalau ada periode khusus)
+          // garis batas (bertingkat: tiap hari bisa beda)
           ctx.beginPath();
           ctx.strokeStyle = "#F4B860";
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 4]);
+          ctx.lineWidth = 1.6;
+          ctx.setLineDash([4, 3]);
           let pen = false;
           days.forEach((x, i) => {
             const x0 = padL + slot * i,
@@ -7096,98 +7159,125 @@
           });
           ctx.stroke();
           ctx.setLineDash([]);
-          ctx.lineWidth = 1;
-          // label tanggal
+          // titik penanda hari yang batasnya diatur manual
+          const ov = dailyTarget.overrides || {};
+          days.forEach((x, i) => {
+            if (ov[x.tgl] > 0) {
+              ctx.beginPath();
+              ctx.fillStyle = "#F4B860";
+              ctx.arc(padL + slot * i + slot / 2, yOf(x.batas), 2.6, 0, 6.3);
+              ctx.fill();
+            }
+          });
+          // label tanggal (1, 5, 10, ...)
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
-          const every = slot >= 11 ? 1 : slot >= 6 ? 2 : 5;
           days.forEach((x, i) => {
-            if (x.d === 1 || x.d % every === 0 || x.d === nDays) {
-              ctx.fillStyle = x.over ? "#FF7A8A" : "#AAA2B8";
+            if (x.d === 1 || x.d % 5 === 0) {
+              ctx.fillStyle = x.tgl === dailyBudgetSel ? "#6D5DFC" : "#AAA2B8";
               ctx.fillText(
                 String(x.d),
                 padL + slot * i + slot / 2,
-                H - padB + 6,
+                H - padB + 5,
               );
             }
           });
         }
-        paint(null);
 
         if (!cv._dbBound) {
           cv._dbBound = true;
-          const show = (e) => {
-            const st = dailyBudgetState;
-            if (!st) return;
+          cv.addEventListener("pointerdown", (e) => {
+            const g = dailyBudgetGeo;
+            if (!g) return;
             const rect = cv.getBoundingClientRect();
-            const px = e.clientX - rect.left;
-            const i = Math.floor((px - padL) / slot);
-            if (i < 0 || i >= st.days.length) {
-              tip.style.display = "none";
-              return;
-            }
-            const x = st.days[i];
-            tip.innerHTML =
-              `<b>${fmtDate(x.tgl)}</b><br>Terpakai ${fmt(x.used)}` +
-              (x.batas > 0
-                ? `<br>Batas ${fmt(x.batas)}` +
-                  (x.over ? `<br>⚠️ Lebih ${fmt(x.lebih)}` : `<br>✓ Aman`)
-                : `<br>(belum ada batas)`);
-            tip.style.display = "block";
-            const tw = tip.offsetWidth;
-            tip.style.left =
-              Math.max(0, Math.min(px - tw / 2, rect.width - tw)) + "px";
-            tip.style.top = "0px";
-          };
-          cv.addEventListener("pointermove", show);
-          cv.addEventListener("pointerdown", show);
-          cv.addEventListener(
-            "pointerleave",
-            () => (tip.style.display = "none"),
-          );
+            const i = Math.floor((e.clientX - rect.left - g.padL) / g.slot);
+            if (i < 0 || i >= g.n) return;
+            const tgl = dailyBudgetDays[i].tgl;
+            dailyBudgetSel = dailyBudgetSel === tgl ? null : tgl;
+            drawDailyBudget();
+          });
         }
 
-        // ---- ringkasan ----
+        // ---------- panel hari terpilih ----------
+        editEl.innerHTML = "";
+        const sd = days.find((x) => x.tgl === dailyBudgetSel);
+        if (sd && dailyTarget.enabled) {
+          const isOv = ((dailyTarget.overrides || {})[sd.tgl] || 0) > 0;
+          const tg = targetForDate(sd.tgl);
+          const src = isOv
+            ? "diatur manual"
+            : tg.special
+              ? "periode khusus"
+              : "batas standar";
+          const btn =
+            "border:none;border-radius:10px;padding:8px 12px;font:inherit;font-size:.72rem;font-weight:700;cursor:pointer;";
+          editEl.innerHTML = `<div style="background:var(--mint-100);border-radius:var(--r-sm);padding:10px;margin-top:10px">
+            <div style="font-size:.74rem;font-weight:700">${escapeHtml(fmtDate(sd.tgl))}</div>
+            <div style="font-size:.64rem;color:var(--ink-2);margin:3px 0 8px;line-height:1.5">
+              Terpakai <b class="num">${fmt(sd.used)}</b><br>
+              ${
+                sd.batas > 0
+                  ? `Batas <b class="num">${fmt(sd.batas)}</b> (${src})`
+                  : "Belum ada batas"
+              }${sd.over ? ` · <span style="color:var(--coral);font-weight:700">lebih ${fmt(sd.lebih)}</span>` : ""}
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input id="dbInput" type="text" inputmode="numeric" placeholder="Batas hari ini (Rp)"
+                value="${sd.batas ? Number(sd.batas).toLocaleString("id-ID") : ""}"
+                oninput="formatJumlahInput(this)"
+                style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:.78rem;background:#fff" />
+              <button type="button" onclick="dbSaveOverride()" style="${btn}background:var(--mint-700);color:#fff">Simpan</button>
+              ${isOv ? `<button type="button" onclick="dbResetOverride()" style="${btn}background:#fff;color:var(--ink-2)">Reset</button>` : ""}
+            </div>
+          </div>`;
+        }
+
+        // ---------- ringkasan ----------
+        if (!dailyTarget.enabled || !days.some((x) => x.batas > 0)) {
+          sumEl.innerHTML = `<div class="daily-note" style="margin-top:10px">🎯 Atur target harian dulu supaya hari yang boros bisa ditandai. <button class="daily-cta" style="margin-top:6px" onclick="openTargetModal()">Atur Target</button></div>`;
+          return;
+        }
         const overDays = days.filter((x) => x.over);
         const totalLebih = overDays.reduce((s, x) => s + x.lebih, 0);
         const boros = days.reduce((a, b) => (b.used > a.used ? b : a), days[0]);
         const dilacak = days.filter((x) => x.batas > 0 && x.used > 0).length;
-        if (!dailyTarget.enabled || !days.some((x) => x.batas > 0)) {
-          sumEl.innerHTML = `<div class="daily-note">🎯 Atur target harian dulu supaya hari yang boros bisa ditandai. <button class="daily-cta" onclick="openTargetModal()">Atur Target</button></div>`;
-          return;
-        }
+        const box = (bg, label, val, sub) =>
+          `<div style="flex:1;min-width:0;background:${bg};border-radius:var(--r-sm);padding:8px 10px">
+            <div style="font-size:.58rem;color:var(--ink-2)">${label}</div>
+            <div class="num" style="font-weight:700;font-size:.86rem;margin-top:1px">${val}</div>
+            <div style="font-size:.56rem;color:var(--ink-3);margin-top:1px">${sub}</div>
+          </div>`;
+        const list = overDays
+          .map(
+            (
+              x,
+            ) => `<div onclick="dbSelectDay('${x.tgl}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fff;border-radius:var(--r-sm);padding:7px 10px;box-shadow:var(--shadow-card);cursor:pointer">
+              <div style="min-width:0">
+                <div style="font-size:.7rem;font-weight:700">${escapeHtml(shortDate(x.tgl))}</div>
+                <div class="num" style="font-size:.58rem;color:var(--ink-3)">${fmt(x.used)} / ${fmt(x.batas)}</div>
+              </div>
+              <div class="num" style="font-size:.7rem;font-weight:700;color:var(--coral);white-space:nowrap">+${fmt(x.lebih)}</div>
+            </div>`,
+          )
+          .join("");
         sumEl.innerHTML = `
-          <div style="display:flex;gap:8px;margin-bottom:10px">
-            <div style="flex:1;background:var(--coral-soft);border-radius:var(--r-sm);padding:8px 10px">
-              <div style="font-size:.6rem;color:var(--ink-2)">Hari melebihi batas</div>
-              <div class="num" style="font-weight:700">${overDays.length} <span style="font-size:.62rem;color:var(--ink-2)">dari ${dilacak} hari berbelanja</span></div>
-            </div>
-            <div style="flex:1;background:var(--gold-soft);border-radius:var(--r-sm);padding:8px 10px">
-              <div style="font-size:.6rem;color:var(--ink-2)">Total kelebihan</div>
-              <div class="num" style="font-weight:700">${fmt(totalLebih)}</div>
-            </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            ${box("var(--coral-soft)", "Hari boros", overDays.length + " hari", "dari " + dilacak + " hari belanja")}
+            ${box("var(--gold-soft)", "Total kelebihan", fmt(totalLebih), "di atas batas harian")}
           </div>
           ${
             boros && boros.used > 0
-              ? `<div style="font-size:.68rem;color:var(--ink-2);margin-bottom:8px">🔥 Hari paling boros: <b>${fmtDate(boros.tgl)}</b> (${fmt(boros.used)})</div>`
+              ? `<div style="font-size:.64rem;color:var(--ink-2);margin-top:8px">🔥 Paling boros: <b>${escapeHtml(shortDate(boros.tgl))}</b> (${fmt(boros.used)})</div>`
               : ""
           }
           ${
             overDays.length
-              ? `<div style="display:flex;flex-direction:column;gap:6px">` +
-                overDays
-                  .map(
-                    (
-                      x,
-                    ) => `<div class="daily-nums num" style="background:#fff;border-radius:var(--r-sm);padding:7px 10px;box-shadow:var(--shadow-card)">
-                      <span>${fmtDate(x.tgl)}</span>
-                      <span style="color:var(--coral)">+${fmt(x.lebih)}</span>
-                      <span style="color:var(--ink-3)">${fmt(x.used)} / ${fmt(x.batas)}</span>
-                    </div>`,
-                  )
-                  .join("") +
-                `</div>`
-              : `<div class="daily-note">🎉 Mantap! Tidak ada hari yang melebihi batas bulan ini.</div>`
+              ? `<button type="button" onclick="dbToggleList()" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);background:#fff;border-radius:var(--r-sm);padding:9px 12px;font:inherit;font-size:.7rem;font-weight:700;color:var(--ink);cursor:pointer">
+                  <span>📋 ${dailyBudgetListOpen ? "Sembunyikan" : "Lihat"} riwayat hari boros (${overDays.length})</span>
+                  <span>${dailyBudgetListOpen ? "▴" : "▾"}</span>
+                </button>
+                ${dailyBudgetListOpen ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${list}</div>` : ""}`
+              : `<div class="daily-note" style="margin-top:10px">🎉 Mantap! Tidak ada hari yang melebihi batas bulan ini.</div>`
           }`;
       }
 
@@ -8082,6 +8172,7 @@
         enabled: false,
         amount: 0,
         periods: [], // batas khusus per periode: {id, amount, start, end}
+        overrides: {}, // batas manual per tanggal: {"YYYY-MM-DD": jumlah}
         over: {
           img: "",
           title: "Hey, jangan boros! 😠",
@@ -8114,6 +8205,13 @@
             end: p && dre.test(p.end) ? p.end : "",
           }))
           .filter((p) => p.amount > 0 && p.start);
+        base.overrides = {};
+        if (raw.overrides && typeof raw.overrides === "object") {
+          Object.keys(raw.overrides).forEach((k) => {
+            const v = Number(raw.overrides[k]);
+            if (dre.test(k) && v > 0) base.overrides[k] = v;
+          });
+        }
         ["over", "safe"].forEach((k) => {
           const r = raw[k] || {};
           if (typeof r.img === "string") base[k].img = r.img;
@@ -8164,6 +8262,9 @@
       // Batas yang berlaku pada suatu tanggal: periode khusus (kalau ada),
       // kalau tidak ada pakai batas standar yang berlaku seterusnya.
       function targetForDate(dateStr) {
+        const ov = Number((dailyTarget.overrides || {})[dateStr]);
+        if (ov > 0)
+          return { amount: ov, until: "", special: true, override: true };
         let best = null;
         (dailyTarget.periods || []).forEach((p) => {
           if (
@@ -8196,6 +8297,7 @@
           target,
           until: tg.until,
           special: tg.special,
+          override: !!tg.override,
           ready,
           status,
           sisa: Math.max(0, target - used),
@@ -8245,13 +8347,15 @@
             <span>Target ${fmt(st.target)}</span>
           </div>
           ${
-            st.special
-              ? `<div class="daily-note">📅 Batas khusus ${
-                  st.until
-                    ? "berlaku sampai " + fmtDate(st.until)
-                    : "berlaku seterusnya"
-                }</div>`
-              : ""
+            st.override
+              ? `<div class="daily-note">✏️ Batas hari ini diatur manual (dari grafik Laporan)</div>`
+              : st.special
+                ? `<div class="daily-note">📅 Batas khusus ${
+                    st.until
+                      ? "berlaku sampai " + fmtDate(st.until)
+                      : "berlaku seterusnya"
+                  }</div>`
+                : ""
           }`;
       }
       function renderDailyTarget() {
@@ -8485,6 +8589,7 @@
           enabled,
           amount: isNaN(amount) ? 0 : amount,
           periods,
+          overrides: dailyTarget.overrides,
           over: {
             img: tgtDraft.over.img,
             title: document.getElementById("tgtTitleOver").value.trim(),
