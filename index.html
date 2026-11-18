@@ -2385,6 +2385,51 @@
             <div class="ratio-wrap" id="ratioWrap"></div>
           </div>
 
+          <div class="section-title" id="titleDailyBudget">
+            Pengeluaran Harian vs Batas
+          </div>
+          <div class="card bar-card">
+            <div style="position: relative">
+              <canvas
+                id="dailyBudgetCanvas"
+                height="200"
+                style="width: 100%; display: block; cursor: pointer"
+              ></canvas>
+              <div
+                id="dailyBudgetTip"
+                style="
+                  position: absolute;
+                  display: none;
+                  background: rgba(21, 48, 44, 0.92);
+                  color: #fff;
+                  font-family: &quot;DM Mono&quot;, monospace;
+                  font-size: 0.62rem;
+                  padding: 6px 9px;
+                  border-radius: 8px;
+                  pointer-events: none;
+                  white-space: nowrap;
+                  z-index: 5;
+                "
+              ></div>
+            </div>
+            <div
+              style="
+                display: flex;
+                gap: 12px;
+                justify-content: center;
+                flex-wrap: wrap;
+                font-size: 0.66rem;
+                color: var(--ink-2);
+                margin-top: 6px;
+              "
+            >
+              <span>🟣 Sesuai batas</span>
+              <span>🌸 Melebihi batas</span>
+              <span>🟡 Garis batas harian</span>
+            </div>
+            <div id="dailyBudgetSummary" style="margin-top: 12px"></div>
+          </div>
+
           <div class="section-title" id="titleTrenTahunan">
             Tren Tahunan per Bulan
           </div>
@@ -6923,8 +6968,227 @@
           al("d"),
         );
         drawBar();
+        drawDailyBudget();
         drawYearLine();
         drawSpendDonut();
+      }
+
+      let dailyBudgetState = null;
+      function drawDailyBudget() {
+        const cv = document.getElementById("dailyBudgetCanvas");
+        const sumEl = document.getElementById("dailyBudgetSummary");
+        const titleEl = document.getElementById("titleDailyBudget");
+        const tip = document.getElementById("dailyBudgetTip");
+        if (!cv || !sumEl) return;
+        if (!currentMonth) {
+          sumEl.innerHTML = `<div class="daily-note">Pilih satu bulan dulu untuk melihat grafik harian.</div>`;
+          cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
+          dailyBudgetState = null;
+          return;
+        }
+        if (titleEl)
+          titleEl.textContent = `Pengeluaran Harian — ${monthNameFull(currentMonth)}`;
+
+        const [Y, M] = currentMonth.split("-").map(Number);
+        const nDays = new Date(Y, M, 0).getDate();
+        const perHari = {};
+        rowsForMonth(currentMonth)
+          .filter((r) => r.tipe === "pengeluaran")
+          .forEach((r) => {
+            perHari[r.tanggal] = (perHari[r.tanggal] || 0) + Number(r.jml || 0);
+          });
+        const days = [];
+        for (let d = 1; d <= nDays; d++) {
+          const tgl = currentMonth + "-" + String(d).padStart(2, "0");
+          const used = perHari[tgl] || 0;
+          const batas = dailyTarget.enabled ? targetForDate(tgl).amount : 0;
+          days.push({
+            d,
+            tgl,
+            used,
+            batas,
+            over: batas > 0 && used > batas,
+            lebih: batas > 0 ? Math.max(0, used - batas) : 0,
+          });
+        }
+        dailyBudgetState = { days, sel: null };
+
+        // ---- canvas ----
+        const dpr = window.devicePixelRatio || 1;
+        const W = cv.offsetWidth || 360,
+          H = 200,
+          padT = 14,
+          padB = 24,
+          padL = 40,
+          padR = 8;
+        cv.width = W * dpr;
+        cv.height = H * dpr;
+        cv.style.width = W + "px";
+        cv.style.height = H + "px";
+        const ctx = cv.getContext("2d");
+        const chartW = W - padL - padR,
+          chartH = H - padT - padB;
+        const slot = chartW / nDays;
+        const barW = Math.max(3, slot * 0.68);
+        const mx =
+          Math.max(1, ...days.map((x) => Math.max(x.used, x.batas))) * 1.1;
+        const yOf = (v) => padT + chartH - (v / mx) * chartH;
+        const lbl = (v) =>
+          v >= 1000000
+            ? (v / 1000000).toFixed(1) + "jt"
+            : v >= 1000
+              ? (v / 1000).toFixed(0) + "rb"
+              : String(Math.round(v));
+
+        function paint(sel) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.scale(dpr, dpr);
+          ctx.clearRect(0, 0, W, H);
+          ctx.font = '9px "DM Mono",monospace';
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          for (let i = 0; i <= 4; i++) {
+            const v = (mx / 4) * i,
+              y = yOf(v);
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(21,48,44,.08)";
+            ctx.moveTo(padL - 4, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+            ctx.fillStyle = "#AAA2B8";
+            ctx.fillText(lbl(v), padL - 8, y);
+          }
+          // bar
+          days.forEach((x, i) => {
+            const cx = padL + slot * i + slot / 2;
+            const y = yOf(x.used);
+            ctx.fillStyle = x.over
+              ? "#FF7A8A"
+              : x.batas > 0
+                ? "#8B7CF6"
+                : "#DDD6FE";
+            if (x.used > 0)
+              ctx.fillRect(cx - barW / 2, y, barW, padT + chartH - y);
+            if (sel === i) {
+              ctx.strokeStyle = "#272238";
+              ctx.lineWidth = 1.5;
+              ctx.strokeRect(cx - barW / 2 - 1, padT, barW + 2, chartH);
+              ctx.lineWidth = 1;
+            }
+          });
+          // garis batas (bertingkat kalau ada periode khusus)
+          ctx.beginPath();
+          ctx.strokeStyle = "#F4B860";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 4]);
+          let pen = false;
+          days.forEach((x, i) => {
+            const x0 = padL + slot * i,
+              x1 = x0 + slot;
+            if (x.batas > 0) {
+              const y = yOf(x.batas);
+              if (!pen) {
+                ctx.moveTo(x0, y);
+                pen = true;
+              } else ctx.lineTo(x0, y);
+              ctx.lineTo(x1, y);
+            } else pen = false;
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.lineWidth = 1;
+          // label tanggal
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          const every = slot >= 11 ? 1 : slot >= 6 ? 2 : 5;
+          days.forEach((x, i) => {
+            if (x.d === 1 || x.d % every === 0 || x.d === nDays) {
+              ctx.fillStyle = x.over ? "#FF7A8A" : "#AAA2B8";
+              ctx.fillText(
+                String(x.d),
+                padL + slot * i + slot / 2,
+                H - padB + 6,
+              );
+            }
+          });
+        }
+        paint(null);
+
+        if (!cv._dbBound) {
+          cv._dbBound = true;
+          const show = (e) => {
+            const st = dailyBudgetState;
+            if (!st) return;
+            const rect = cv.getBoundingClientRect();
+            const px = e.clientX - rect.left;
+            const i = Math.floor((px - padL) / slot);
+            if (i < 0 || i >= st.days.length) {
+              tip.style.display = "none";
+              return;
+            }
+            const x = st.days[i];
+            tip.innerHTML =
+              `<b>${fmtDate(x.tgl)}</b><br>Terpakai ${fmt(x.used)}` +
+              (x.batas > 0
+                ? `<br>Batas ${fmt(x.batas)}` +
+                  (x.over ? `<br>⚠️ Lebih ${fmt(x.lebih)}` : `<br>✓ Aman`)
+                : `<br>(belum ada batas)`);
+            tip.style.display = "block";
+            const tw = tip.offsetWidth;
+            tip.style.left =
+              Math.max(0, Math.min(px - tw / 2, rect.width - tw)) + "px";
+            tip.style.top = "0px";
+          };
+          cv.addEventListener("pointermove", show);
+          cv.addEventListener("pointerdown", show);
+          cv.addEventListener(
+            "pointerleave",
+            () => (tip.style.display = "none"),
+          );
+        }
+
+        // ---- ringkasan ----
+        const overDays = days.filter((x) => x.over);
+        const totalLebih = overDays.reduce((s, x) => s + x.lebih, 0);
+        const boros = days.reduce((a, b) => (b.used > a.used ? b : a), days[0]);
+        const dilacak = days.filter((x) => x.batas > 0 && x.used > 0).length;
+        if (!dailyTarget.enabled || !days.some((x) => x.batas > 0)) {
+          sumEl.innerHTML = `<div class="daily-note">🎯 Atur target harian dulu supaya hari yang boros bisa ditandai. <button class="daily-cta" onclick="openTargetModal()">Atur Target</button></div>`;
+          return;
+        }
+        sumEl.innerHTML = `
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="flex:1;background:var(--coral-soft);border-radius:var(--r-sm);padding:8px 10px">
+              <div style="font-size:.6rem;color:var(--ink-2)">Hari melebihi batas</div>
+              <div class="num" style="font-weight:700">${overDays.length} <span style="font-size:.62rem;color:var(--ink-2)">dari ${dilacak} hari berbelanja</span></div>
+            </div>
+            <div style="flex:1;background:var(--gold-soft);border-radius:var(--r-sm);padding:8px 10px">
+              <div style="font-size:.6rem;color:var(--ink-2)">Total kelebihan</div>
+              <div class="num" style="font-weight:700">${fmt(totalLebih)}</div>
+            </div>
+          </div>
+          ${
+            boros && boros.used > 0
+              ? `<div style="font-size:.68rem;color:var(--ink-2);margin-bottom:8px">🔥 Hari paling boros: <b>${fmtDate(boros.tgl)}</b> (${fmt(boros.used)})</div>`
+              : ""
+          }
+          ${
+            overDays.length
+              ? `<div style="display:flex;flex-direction:column;gap:6px">` +
+                overDays
+                  .map(
+                    (
+                      x,
+                    ) => `<div class="daily-nums num" style="background:#fff;border-radius:var(--r-sm);padding:7px 10px;box-shadow:var(--shadow-card)">
+                      <span>${fmtDate(x.tgl)}</span>
+                      <span style="color:var(--coral)">+${fmt(x.lebih)}</span>
+                      <span style="color:var(--ink-3)">${fmt(x.used)} / ${fmt(x.batas)}</span>
+                    </div>`,
+                  )
+                  .join("") +
+                `</div>`
+              : `<div class="daily-note">🎉 Mantap! Tidak ada hari yang melebihi batas bulan ini.</div>`
+          }`;
       }
 
       let barAnim = null;
@@ -8331,8 +8595,10 @@
             document
               .getElementById("screen-report")
               .classList.contains("active")
-          )
+          ) {
             drawBar();
+            drawDailyBudget();
+          }
         });
       }
       window.addEventListener("DOMContentLoaded", init);
