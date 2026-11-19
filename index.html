@@ -2747,10 +2747,18 @@
             <label id="fKatLabel">Kategori</label>
             <select
               id="fKat"
-              onchange="onTransferBudgetChange()"
+              onchange="
+                onTransferBudgetChange();
+                syncSubKat();
+              "
               disabled
               style="opacity: 0.45; cursor: not-allowed"
             ></select>
+          </div>
+
+          <div class="field" id="fieldSubKat" style="display: none">
+            <label>Rincian Makan & Dapur</label>
+            <select id="fSubKat"></select>
           </div>
 
           <div class="field" id="fieldAlokasiPemasukan" style="display: none">
@@ -3815,6 +3823,13 @@
           desc: "Paket data, pulsa, kuota internet, WiFi, dan langganan internet.",
         },
         {
+          key: "Perawatan Diri",
+          g: "p",
+          icon: "🧴",
+          color: "#ffb3c7",
+          desc: "Skincare, makeup, alat mandi, dan perawatan diri lainnya.",
+        },
+        {
           key: "Skincare",
           g: "p",
           icon: "🫧",
@@ -3986,6 +4001,7 @@
       const DL_EXCLUDE = [
         "Makan & Dapur",
         "Kuota Internet",
+        "Perawatan Diri",
         "Tabungan",
         "Dana Darurat",
         "Dana Insidental",
@@ -5175,10 +5191,67 @@
       }
 
       /* ---------------- add-transaction modal ---------------- */
+      // Rincian hanya untuk kategori Makan & Dapur (form pengeluaran biasa)
+      const KAT_MAKAN = "Makan & Dapur";
+      const MAKAN_SUB = [
+        { key: "Sarapan", icon: "☕" },
+        { key: "Makan Siang", icon: "🍛" },
+        { key: "Makan Malam", icon: "🍽️" },
+        { key: "Sayur", icon: "🥬" },
+        { key: "Kebutuhan Dapur/Masak", icon: "🧂" },
+        { key: "Buah-Buahan", icon: "🍎" },
+      ];
+
+      function subKatOptions() {
+        return (
+          `<option value="">Pilih rincian (opsional)</option>` +
+          MAKAN_SUB.map(
+            (x) => `<option value="${x.key}">${x.icon} ${x.key}</option>`,
+          ).join("")
+        );
+      }
+
+      function syncSubKat() {
+        const field = document.getElementById("fieldSubKat");
+        const sel = document.getElementById("fSubKat");
+        if (!field || !sel) return;
+        if (!sel.options.length) sel.innerHTML = subKatOptions();
+        const show =
+          currentTipe === "pengeluaran" &&
+          !currentDL &&
+          document.getElementById("fKat").value === KAT_MAKAN;
+        field.style.display = show ? "" : "none";
+        if (!show) sel.value = "";
+      }
+
+      // Kategori pengeluaran biasa = alokasi anggaran (tanpa Daily Life)
+      function mainExpenseCategoryOptions() {
+        return Object.entries(BUDGET_GROUPS)
+          .filter(([key]) => key !== "d")
+          .map(
+            ([, b]) =>
+              `<option value="${b.label}">${b.icon} ${b.label}</option>`,
+          )
+          .join("");
+      }
+
+      // Data lama (kategori rinci) -> kategori alokasi + rincian
+      function resolveExpenseCategory(r) {
+        const nk = normalizeKategori(r.kategori || "Lainnya");
+        const g = groupOfKategori(nk);
+        const kat = BUDGET_GROUPS[g === "d" ? "h" : g].label;
+        let sub = r.subKategori || "";
+        if (!sub && g === "k" && MAKAN_SUB.some((x) => x.key === nk)) sub = nk;
+        return { kat, sub };
+      }
+
+      function defaultScanKat() {
+        return currentDL ? "Kebutuhan Dapur/Masak" : KAT_MAKAN;
+      }
+
       function expenseCategoryOptions() {
-        const list = currentDL
-          ? KATEGORI.filter((k) => !DL_EXCLUDE.includes(k.key))
-          : KATEGORI;
+        if (!currentDL) return mainExpenseCategoryOptions();
+        const list = KATEGORI.filter((k) => !DL_EXCLUDE.includes(k.key));
         return list
           .map((k) => `<option value="${k.key}">${k.icon} ${k.key}</option>`)
           .join("");
@@ -5207,6 +5280,7 @@
 
       function buildKatSelect() {
         document.getElementById("fKat").innerHTML = expenseCategoryOptions();
+        document.getElementById("fSubKat").innerHTML = subKatOptions();
         document.getElementById("fTujuanBudget").innerHTML =
           budgetGroupOptions();
         document.getElementById("fAlokasiPemasukan").innerHTML =
@@ -5229,6 +5303,7 @@
         document.getElementById("fWalletTransfer").value = "bank_bank";
         document.getElementById("fTujuanBudget").value = "k";
         document.getElementById("fAlokasiPemasukan").value = "k";
+        document.getElementById("fSubKat").value = "";
         setTipe("pemasukan");
         document.getElementById("modalAdd").classList.add("show");
       }
@@ -5250,9 +5325,16 @@
 
         if (r.tipe === "pengeluaran") {
           setTipe("pengeluaran", !!r.dailyLife);
-          document.getElementById("fKat").value = normalizeKategori(
-            r.kategori || "Lainnya",
-          );
+          if (r.dailyLife) {
+            document.getElementById("fKat").value = normalizeKategori(
+              r.kategori || "Lainnya",
+            );
+          } else {
+            const res = resolveExpenseCategory(r);
+            document.getElementById("fKat").value = res.kat;
+            syncSubKat();
+            document.getElementById("fSubKat").value = res.sub;
+          }
           document.getElementById("fMetode").value = r.metode || "cash";
         } else if (r.tipe === "transfer_saldo") {
           setTipe("transfer_saldo");
@@ -5609,6 +5691,7 @@
           katSel.style.opacity = 0.45;
           katSel.style.cursor = "not-allowed";
         }
+        syncSubKat();
       }
 
       function syncIncomeAllocationUI() {
@@ -5680,6 +5763,10 @@
           };
         } else if (currentTipe === "pengeluaran") {
           const kat = document.getElementById("fKat").value;
+          const subKat =
+            !currentDL && kat === KAT_MAKAN
+              ? document.getElementById("fSubKat").value
+              : "";
           const metode = document.getElementById("fMetode").value;
           const group = currentDL ? "d" : groupOfKategori(kat);
           const bucket = metode === "cash" ? "cash" : "bank";
@@ -5706,6 +5793,7 @@
             ket,
             jml,
             kategori: kat,
+            ...(subKat ? { subKategori: subKat } : {}),
             metode,
             ...(currentDL ? { dailyLife: true } : {}),
           };
@@ -6269,7 +6357,7 @@
               items.push({
                 nama: nm + d.label,
                 harga: d.harga,
-                kat: "Kebutuhan Dapur/Masak",
+                kat: defaultScanKat(),
                 aktif: true,
               });
             }
@@ -6293,7 +6381,7 @@
           items.push({
             nama,
             harga: r.harga,
-            kat: "Kebutuhan Dapur/Masak",
+            kat: defaultScanKat(),
             aktif: true,
           });
         }
@@ -6365,7 +6453,7 @@
               true,
             );
             scanItems = [
-              { nama: "", harga: 0, kat: "Kebutuhan Dapur/Masak", aktif: true },
+              { nama: "", harga: 0, kat: defaultScanKat(), aktif: true },
             ];
           } else {
             showToast(
@@ -6384,7 +6472,7 @@
             true,
           );
           scanItems = [
-            { nama: "", harga: 0, kat: "Kebutuhan Dapur/Masak", aktif: true },
+            { nama: "", harga: 0, kat: defaultScanKat(), aktif: true },
           ];
           document.getElementById("scanItemsWrap").style.display = "";
           renderScanItemsList();
@@ -6398,7 +6486,7 @@
         scanItems.push({
           nama: "",
           harga: 0,
-          kat: "Kebutuhan Dapur/Masak",
+          kat: defaultScanKat(),
           aktif: true,
         });
         renderScanItemsList();
@@ -7852,7 +7940,7 @@
             const details = txs
               .map(
                 (r) => `
-        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)} <span style="color:var(--ink-3)">(${escapeHtml(normalizeKategori(r.kategori))})</span><div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${metodeLabel(r.metode)}${r.dariCelengan ? ' · <span style="color:var(--mint-700)">💰 dari Celengan</span>' : ""}</div></span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
+        <div class="spend-detail-item"><span class="spend-detail-date">${fmtDate(r.tanggal)}</span><span class="spend-detail-ket">${escapeHtml(r.ket)} <span style="color:var(--ink-3)">(${escapeHtml(normalizeKategori(r.kategori))}${r.subKategori ? " · " + escapeHtml(r.subKategori) : ""})</span><div style="font-size:.6rem;color:var(--ink-3);margin-top:2px">${metodeLabel(r.metode)}${r.dariCelengan ? ' · <span style="color:var(--mint-700)">💰 dari Celengan</span>' : ""}</div></span><span class="spend-detail-jml">${fmt(r.jml)}</span></div>`,
               )
               .join("");
             const id = safeDomId(s.key);
@@ -8130,7 +8218,7 @@
             const categoryInfo = isTransfer
               ? `${BUDGET_GROUPS[group]?.icon || "📦"} ${BUDGET_GROUPS[group]?.label || r.kategori}`
               : k
-                ? `${k.icon} ${k.key}`
+                ? `${k.icon} ${k.key}${r.subKategori ? " · " + escapeHtml(r.subKategori) : ""}`
                 : "";
 
             return `<tr>
