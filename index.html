@@ -3731,7 +3731,7 @@
       // g = kelompok budget tempat kategori ini mengambil uang
       const KATEGORI = [
         {
-          key: "Makan & Belanja Bahan Masakan",
+          key: "Makan & Dapur",
           g: "k",
           icon: "🍛",
           color: "#ff7a8a",
@@ -3920,14 +3920,15 @@
       const GROUP_EMAS = ["Investasi", "Tabung Emas", "Emas", "Tabungan Emas"];
       // Nama kategori lama -> nama baru (supaya data lama tetap terbaca)
       const KATEGORI_ALIAS = {
-        Kebutuhan: "Makan & Belanja Bahan Masakan",
+        Kebutuhan: "Makan & Dapur",
+        "Makan & Belanja Bahan Masakan": "Makan & Dapur",
         Nyuci: "Laundry",
         Pendidikan: "Kuliah",
       };
 
       const BUDGET_GROUPS = {
         d: { label: "Daily Life Budget", icon: "🌤️" },
-        k: { label: "Makan & Belanja Bahan Masakan", icon: "🍛" },
+        k: { label: "Makan & Dapur", icon: "🍛" },
         r: { label: "Transportasi", icon: "🛵" },
         l: { label: "Laundry", icon: "🧺" },
         w: { label: "Jajan", icon: "🧋" },
@@ -3983,7 +3984,7 @@
       }
       // Kategori yang TIDAK dipakai di pengeluaran Daily Life
       const DL_EXCLUDE = [
-        "Makan & Belanja Bahan Masakan",
+        "Makan & Dapur",
         "Kuota Internet",
         "Tabungan",
         "Dana Darurat",
