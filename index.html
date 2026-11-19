@@ -2556,7 +2556,7 @@
                     <th>Bulan</th>
                     <th>🏦 Tabungan</th>
                     <th>🛡️ Dana Darurat</th>
-                    <th>🎉 Healing & Hiburan</th>
+                    <th>🧰 Dana Insidental</th>
                     <th>🪙 Investasi</th>
                   </tr>
                 </thead>
@@ -2711,9 +2711,9 @@
             "
           >
             🌤️ <b>Pengeluaran Daily Life</b> memakai uang dari kantong
-            <b>Daily Life Budget</b> saja, tidak mengurangi bujet Kebutuhan,
-            Jajan, dll. Kategori Kebutuhan, Tabungan, Healing, Dana Darurat dan
-            Investasi tidak dipakai di sini.
+            <b>Daily Life Budget</b> saja, tidak mengurangi bujet Makan,
+            Transportasi, Jajan, dll. Kategori Tabungan, Dana Darurat, Dana
+            Insidental dan Investasi tidak dipakai di sini.
           </div>
 
           <div class="field" id="fieldScanStruk" style="display: none">
@@ -2762,8 +2762,8 @@
             <div
               style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
             >
-              Otomatis memakai pembagian bujet. Jika memilih salah satu bagian,
-              seluruh pemasukan ini dialokasikan manual ke bagian tersebut.
+              Pilih bagian anggaran tujuan. Seluruh pemasukan ini masuk manual
+              ke alokasi yang kamu pilih (tidak ada pembagian otomatis).
             </div>
           </div>
 
@@ -2903,9 +2903,9 @@
             <div
               style="font-size: 0.62rem; color: var(--ink-3); line-height: 1.45"
             >
-              Saldo akan ditambahkan ke alokasi bujet bulan ini — bisa
-              Kebutuhan, Jajan/Keinginan, atau bagian Celengan lain (Tabungan,
-              Dana Darurat, Healing & Hiburan, Investasi).
+              Saldo akan ditambahkan ke alokasi bujet bulan ini — bisa Makan,
+              Transportasi, Jajan, dll., atau bagian Celengan lain (Tabungan,
+              Dana Darurat, Dana Insidental, Investasi).
             </div>
           </div>
 
@@ -3728,181 +3728,215 @@
       let editingId = null;
       let currentDL = false; // true = form pengeluaran Daily Life
 
-      const RATIO = {
-        d: 0,
-        k: 0.5,
-        w: 0.15,
-        t: 0.15,
-        c: 0.1,
-        h: 0.05,
-        e: 0.05,
-      };
-
+      // g = kelompok budget tempat kategori ini mengambil uang
       const KATEGORI = [
         {
-          key: "Kebutuhan",
-          icon: "🧾",
-          color: "#6d5dfc",
-          desc: "Saldo sisa kebutuhan dari bulan sebelumnya atau pengeluaran kebutuhan umum.",
+          key: "Makan & Belanja Bahan Masakan",
+          g: "k",
+          icon: "🍛",
+          color: "#ff7a8a",
+          desc: "Makan sehari-hari dan belanja bahan masakan secara umum.",
         },
         {
           key: "Sarapan",
+          g: "k",
           icon: "☕",
           color: "#f4b860",
           desc: "Kopi, teh, roti, bubur, nasi pagi, atau menu sarapan lainnya.",
         },
         {
           key: "Makan Siang",
+          g: "k",
           icon: "🍛",
           color: "#ff9f6e",
           desc: "Nasi, lauk, kantin, warung, restoran, atau pesan online.",
         },
         {
           key: "Makan Malam",
+          g: "k",
           icon: "🍽️",
           color: "#ff8fab",
           desc: "Makan malam di rumah, warung, restoran, atau pesan makanan.",
         },
         {
           key: "Sayur",
+          g: "k",
           icon: "🥬",
           color: "#88c999",
           desc: "Sayuran segar, lalapan, bahan sop, tumisan, dan kebutuhan sayur harian.",
         },
         {
           key: "Kebutuhan Dapur/Masak",
+          g: "k",
           icon: "🧂",
           color: "#c79a5b",
           desc: "Beras, minyak, telur, bumbu dapur, gas, dan bahan masakan.",
         },
         {
           key: "Buah-Buahan",
+          g: "k",
           icon: "🍎",
           color: "#ff7a8a",
           desc: "Buah segar, jus buah, salad buah, dan kebutuhan buah harian.",
         },
         {
           key: "Transportasi",
+          g: "r",
           icon: "🛵",
           color: "#67b7dc",
           desc: "Bensin, ojek online, angkot, parkir, tol, dan transportasi umum.",
         },
         {
-          key: "Rumah",
-          icon: "🏠",
-          color: "#a78bfa",
-          desc: "Kos, kontrakan, listrik, internet, gas, kebersihan rumah, dan kebutuhan hunian.",
+          key: "Laundry",
+          g: "l",
+          icon: "🧺",
+          color: "#7fc8a9",
+          desc: "Laundry kiloan, detergen, pelembut, dan kebutuhan mencuci.",
         },
         {
-          key: "Kesehatan",
-          icon: "💊",
-          color: "#69c7b1",
-          desc: "Obat-obatan, dokter, vitamin, apotek, dan pemeriksaan kesehatan.",
+          key: "Pewangi",
+          g: "l",
+          icon: "🌸",
+          color: "#f6aac2",
+          desc: "Pewangi pakaian, pelembut, dan pengharum untuk cucian.",
         },
         {
-          key: "Pendidikan",
-          icon: "📚",
-          color: "#d9a441",
-          desc: "Kursus, buku, biaya sekolah, kuliah, pelatihan, dan perlengkapan belajar.",
-        },
-        {
-          key: "Jajan/Keinginan",
-          icon: "💅",
-          color: "#ff8fab",
+          key: "Jajan",
+          g: "w",
+          icon: "🧋",
+          color: "#d66ba0",
           desc: "Jajan, cemilan, minuman kekinian, self reward, dan pengeluaran personal yang sifatnya bukan kebutuhan pokok.",
         },
         {
+          key: "Kuota Internet",
+          g: "q",
+          icon: "📶",
+          color: "#4f8cff",
+          desc: "Paket data, pulsa, kuota internet, WiFi, dan langganan internet.",
+        },
+        {
           key: "Skincare",
+          g: "p",
           icon: "🫧",
           color: "#ffb3c7",
           desc: "Serum, moisturizer, sunscreen, toner, facial wash, dan perawatan wajah.",
         },
         {
           key: "Makeup",
+          g: "p",
           icon: "💄",
           color: "#d66ba0",
           desc: "Foundation, lipstik, mascara, bedak, blush on, brush, dan alat makeup.",
         },
         {
           key: "Alat Mandi",
+          g: "p",
           icon: "🧴",
           color: "#79c7d9",
           desc: "Sabun, shampo, sikat gigi, pasta gigi, lulur, dan perlengkapan mandi.",
         },
         {
-          key: "Nyuci",
-          icon: "🧺",
-          color: "#7fc8a9",
-          desc: "Laundry kiloan, detergen, pewangi pakaian, pelembut, dan kebutuhan mencuci.",
-        },
-        {
-          key: "Pewangi",
-          icon: "🌸",
-          color: "#f6aac2",
-          desc: "Pewangi pakaian, pengharum ruangan, parfum, diffuser, dan aroma terapi.",
-        },
-        {
-          key: "Outfit",
-          icon: "👗",
-          color: "#b998ff",
-          desc: "Baju, sepatu, celana, tas, hijab, aksesoris, dan kebutuhan fashion.",
-        },
-        {
-          key: "Air",
-          icon: "💧",
-          color: "#38bdf8",
-          desc: "Galon air minum, PDAM, air mineral, dan kebutuhan air harian.",
+          key: "Kuliah",
+          g: "u",
+          icon: "🎓",
+          color: "#c79a5b",
+          desc: "UKT/SPP, buku, print & fotokopi, praktikum, kursus, dan perlengkapan kuliah.",
         },
         {
           key: "Tabungan",
+          g: "t",
           icon: "🏦",
           color: "#8b7cf6",
           desc: "Pengeluaran dari alokasi tabungan. Jika dipakai, jumlahnya akan mengurangi kelompok Tabungan.",
         },
         {
-          key: "Healing & Hiburan",
-          icon: "🎟️",
-          color: "#8b7cf6",
-          desc: "Nonton film, wisata, karaoke, nongkrong, hangout, dan hiburan.",
-        },
-        {
           key: "Dana Darurat",
+          g: "c",
           icon: "🛡️",
           color: "#f4b860",
           desc: "Simpanan untuk kebutuhan mendadak, darurat, atau pengeluaran tak terduga.",
         },
         {
+          key: "Dana Insidental",
+          g: "h",
+          icon: "🧰",
+          color: "#f08a5d",
+          desc: "Pengeluaran insidental yang tidak rutin dan tidak masuk kelompok lain.",
+        },
+        {
           key: "Investasi",
+          g: "e",
           icon: "🪙",
           color: "#d9a441",
           desc: "Alokasi khusus untuk membeli atau menabung emas secara bertahap.",
         },
         {
+          key: "Kesehatan",
+          g: "h",
+          icon: "💊",
+          color: "#69c7b1",
+          desc: "Obat-obatan, dokter, vitamin, apotek, dan pemeriksaan kesehatan (diambil dari Dana Insidental).",
+        },
+        {
+          key: "Rumah",
+          g: "h",
+          icon: "🏠",
+          color: "#a78bfa",
+          desc: "Kos, kontrakan, listrik, kebersihan rumah, dan kebutuhan hunian (diambil dari Dana Insidental).",
+        },
+        {
+          key: "Outfit",
+          g: "h",
+          icon: "👗",
+          color: "#b998ff",
+          desc: "Baju, sepatu, celana, tas, hijab, aksesoris, dan kebutuhan fashion (diambil dari Dana Insidental).",
+        },
+        {
+          key: "Air",
+          g: "h",
+          icon: "💧",
+          color: "#38bdf8",
+          desc: "Galon air minum, PDAM, air mineral, dan kebutuhan air (diambil dari Dana Insidental).",
+        },
+        {
           key: "Lainnya",
+          g: "h",
           icon: "📦",
           color: "#b09a90",
-          desc: "Pengeluaran lain-lain yang tidak termasuk dalam kategori utama.",
+          desc: "Pengeluaran lain-lain yang tidak termasuk dalam kategori utama (diambil dari Dana Insidental).",
         },
       ];
 
       const GROUP_KEINGINAN = ["Jajan/Keinginan", "Keinginan", "Jajan"];
       const GROUP_TABUNGAN = ["Tabungan"];
       const GROUP_CADANGAN = ["Dana Darurat", "Dana Cadangan", "DanaCadangan"];
-      const GROUP_HEALING = [
+      const GROUP_INSIDENTAL = [
+        "Dana Insidental",
         "Healing & Hiburan",
         "Healing/Dana Bebas",
         "Healing/DanaBebas",
         "Healing",
       ];
       const GROUP_EMAS = ["Investasi", "Tabung Emas", "Emas", "Tabungan Emas"];
+      // Nama kategori lama -> nama baru (supaya data lama tetap terbaca)
+      const KATEGORI_ALIAS = {
+        Kebutuhan: "Makan & Belanja Bahan Masakan",
+        Nyuci: "Laundry",
+        Pendidikan: "Kuliah",
+      };
 
       const BUDGET_GROUPS = {
         d: { label: "Daily Life Budget", icon: "🌤️" },
-        k: { label: "Kebutuhan", icon: "🧾" },
-        w: { label: "Jajan/Keinginan", icon: "💅" },
+        k: { label: "Makan & Belanja Bahan Masakan", icon: "🍛" },
+        r: { label: "Transportasi", icon: "🛵" },
+        l: { label: "Laundry", icon: "🧺" },
+        w: { label: "Jajan", icon: "🧋" },
+        q: { label: "Kuota Internet", icon: "📶" },
+        p: { label: "Perawatan Diri", icon: "🧴" },
+        u: { label: "Kuliah", icon: "🎓" },
         t: { label: "Tabungan", icon: "🏦" },
         c: { label: "Dana Darurat", icon: "🛡️" },
-        h: { label: "Healing & Hiburan", icon: "🎟️" },
+        h: { label: "Dana Insidental", icon: "🧰" },
         e: { label: "Investasi", icon: "🪙" },
       };
 
@@ -3919,23 +3953,25 @@
       ];
 
       function normalizeKategori(kat) {
-        if (GROUP_KEINGINAN.includes(kat)) return "Jajan/Keinginan";
+        if (GROUP_KEINGINAN.includes(kat)) return "Jajan";
         if (GROUP_TABUNGAN.includes(kat)) return "Tabungan";
         if (GROUP_CADANGAN.includes(kat)) return "Dana Darurat";
-        if (GROUP_HEALING.includes(kat)) return "Healing & Hiburan";
+        if (GROUP_INSIDENTAL.includes(kat)) return "Dana Insidental";
         if (GROUP_EMAS.includes(kat)) return "Investasi";
+        if (KATEGORI_ALIAS[kat]) return KATEGORI_ALIAS[kat];
         return kat || "Lainnya";
       }
 
       function groupOfKategori(kat) {
         const cleanKat = normalizeKategori(kat);
         if (cleanKat === "Daily Life Budget") return "d";
-        if (cleanKat === "Jajan/Keinginan") return "w";
-        if (cleanKat === "Tabungan") return "t";
-        if (cleanKat === "Dana Darurat") return "c";
-        if (cleanKat === "Healing & Hiburan") return "h";
-        if (cleanKat === "Investasi") return "e";
-        return "k";
+        const found = KATEGORI.find((x) => x.key === cleanKat);
+        if (found) return found.g;
+        const byLabel = Object.entries(BUDGET_GROUPS).find(
+          ([, b]) => b.label === cleanKat,
+        );
+        if (byLabel) return byLabel[0];
+        return "h";
       }
 
       // Pengeluaran Daily Life ditandai dailyLife:true. Kategori (Sarapan,
@@ -3947,10 +3983,11 @@
       }
       // Kategori yang TIDAK dipakai di pengeluaran Daily Life
       const DL_EXCLUDE = [
-        "Kebutuhan",
+        "Makan & Belanja Bahan Masakan",
+        "Kuota Internet",
         "Tabungan",
-        "Healing & Hiburan",
         "Dana Darurat",
+        "Dana Insidental",
         "Investasi",
       ];
 
@@ -4073,10 +4110,6 @@
       }
 
       function freshBudgetAllocation(rows, group) {
-        const totalAutoIn = rows
-          .filter((r) => r.tipe === "pemasukan" && !r.alokasiManual)
-          .reduce((s, r) => s + Number(r.jml || 0), 0);
-
         const manualIn = rows
           .filter(
             (r) =>
@@ -4090,11 +4123,7 @@
           .filter((r) => r.tipe === "pemasukan_tetap")
           .reduce((s, r) => s + Number(r.jml || 0), 0);
 
-        return (
-          totalAutoIn * (RATIO[group] || 0) +
-          manualIn +
-          (group === "k" ? totalSBL : 0)
-        );
+        return manualIn + (group === "k" ? totalSBL : 0);
       }
 
       function budgetAllocation(rows, group) {
@@ -4299,7 +4328,6 @@
         }
         const rows = rowsForMonth(currentMonth);
         const items = [];
-        const ratio = RATIO[group] || 0;
 
         rows.forEach((r) => {
           const jml = Number(r.jml || 0);
@@ -4314,14 +4342,6 @@
                   val: jml,
                   row: r,
                 });
-            } else if (ratio > 0) {
-              items.push({
-                tgl: r.tanggal,
-                ket: r.ket || "Pemasukan",
-                note: `${Math.round(ratio * 100)}% dari ${fmt(jml)}`,
-                val: jml * ratio,
-                row: r,
-              });
             }
           } else if (r.tipe === "pemasukan_tetap" && group === "k") {
             items.push({
@@ -5174,7 +5194,7 @@
 
       function incomeAllocationOptions() {
         return (
-          `<option value="auto">✨ Otomatis sesuai bujet</option>` +
+          `<option value="" disabled>Pilih alokasi anggaran…</option>` +
           Object.entries(BUDGET_GROUPS)
             .map(
               ([key, b]) =>
@@ -5207,7 +5227,7 @@
         document.getElementById("fArah").value = "bank_cash";
         document.getElementById("fWalletTransfer").value = "bank_bank";
         document.getElementById("fTujuanBudget").value = "k";
-        document.getElementById("fAlokasiPemasukan").value = "auto";
+        document.getElementById("fAlokasiPemasukan").value = "k";
         setTipe("pemasukan");
         document.getElementById("modalAdd").classList.add("show");
       }
@@ -5229,7 +5249,9 @@
 
         if (r.tipe === "pengeluaran") {
           setTipe("pengeluaran", !!r.dailyLife);
-          document.getElementById("fKat").value = r.kategori || "Lainnya";
+          document.getElementById("fKat").value = normalizeKategori(
+            r.kategori || "Lainnya",
+          );
           document.getElementById("fMetode").value = r.metode || "cash";
         } else if (r.tipe === "transfer_saldo") {
           setTipe("transfer_saldo");
@@ -5247,7 +5269,7 @@
         } else {
           setTipe("pemasukan");
           document.getElementById("fAlokasiPemasukan").value =
-            r.alokasiManual && r.alokasiGroup ? r.alokasiGroup : "auto";
+            r.alokasiManual && r.alokasiGroup ? r.alokasiGroup : "k";
         }
 
         document.getElementById("submitLabel").textContent =
@@ -5279,7 +5301,7 @@
 
       function celenganCategoryOptions() {
         return Object.entries(BUDGET_GROUPS)
-          .filter(([key]) => key !== "k" && key !== "w" && key !== "d")
+          .filter(([key]) => !AUTO_CARRY_GROUPS.includes(key))
           .map(
             ([key, b]) =>
               `<option value="${key}">${b.icon} ${b.label}</option>`,
@@ -5312,8 +5334,8 @@
         if (mode === "pindah") {
           celHint.innerHTML =
             "🔄 Saldo <b>Celengan</b> dipindahkan jadi <b>alokasi bujet bulan ini</b> " +
-            "— bisa ke Kebutuhan, Jajan/Keinginan, atau bagian Celengan lain " +
-            "(Tabungan, Dana Darurat, Healing & Hiburan, Investasi). " +
+            "— bisa ke Makan, Transportasi, Jajan, dll., atau bagian Celengan lain " +
+            "(Tabungan, Dana Darurat, Dana Insidental, Investasi). " +
             "Perpindahan ini <b>bukan pengeluaran</b>, tapi tetap mengurangi " +
             "saldo Celengan asal.";
           metodeLabelEl.textContent = "Lokasi Saldo";
@@ -5693,8 +5715,8 @@
           }
           const alokasi =
             currentTipe === "pemasukan"
-              ? document.getElementById("fAlokasiPemasukan")?.value || "auto"
-              : "auto";
+              ? document.getElementById("fAlokasiPemasukan")?.value || "k"
+              : "";
 
           payload = {
             id: editingId ?? Date.now(),
@@ -5703,9 +5725,9 @@
             tipe: currentTipe,
             ket,
             jml,
-            kategori: alokasi !== "auto" ? BUDGET_GROUPS[alokasi].label : "",
-            alokasiManual: currentTipe === "pemasukan" && alokasi !== "auto",
-            alokasiGroup: alokasi !== "auto" ? alokasi : "",
+            kategori: alokasi ? BUDGET_GROUPS[alokasi].label : "",
+            alokasiManual: currentTipe === "pemasukan",
+            alokasiGroup: alokasi,
           };
         }
 
@@ -6246,7 +6268,7 @@
               items.push({
                 nama: nm + d.label,
                 harga: d.harga,
-                kat: "Kebutuhan",
+                kat: "Kebutuhan Dapur/Masak",
                 aktif: true,
               });
             }
@@ -6267,7 +6289,12 @@
           nama = strukTitleCase(nama);
           if (nama.length > 50) nama = nama.slice(0, 50).trim();
           if (r.qty > 1) nama += " x" + r.qty;
-          items.push({ nama, harga: r.harga, kat: "Kebutuhan", aktif: true });
+          items.push({
+            nama,
+            harga: r.harga,
+            kat: "Kebutuhan Dapur/Masak",
+            aktif: true,
+          });
         }
         return { items, total, lines };
       }
@@ -6336,7 +6363,9 @@
               "⚠️ Belum ketemu item otomatis. Tambah baris manual, ya!",
               true,
             );
-            scanItems = [{ nama: "", harga: 0, kat: "Kebutuhan", aktif: true }];
+            scanItems = [
+              { nama: "", harga: 0, kat: "Kebutuhan Dapur/Masak", aktif: true },
+            ];
           } else {
             showToast(
               `✓ Terbaca ${scanItems.length} item, cek dulu ya sebelum simpan`,
@@ -6353,7 +6382,9 @@
             "⚠️ Gagal membaca struk otomatis. Coba foto lebih jelas atau isi manual.",
             true,
           );
-          scanItems = [{ nama: "", harga: 0, kat: "Kebutuhan", aktif: true }];
+          scanItems = [
+            { nama: "", harga: 0, kat: "Kebutuhan Dapur/Masak", aktif: true },
+          ];
           document.getElementById("scanItemsWrap").style.display = "";
           renderScanItemsList();
         } finally {
@@ -6363,7 +6394,12 @@
       }
 
       function addScanRow() {
-        scanItems.push({ nama: "", harga: 0, kat: "Kebutuhan", aktif: true });
+        scanItems.push({
+          nama: "",
+          harga: 0,
+          kat: "Kebutuhan Dapur/Masak",
+          aktif: true,
+        });
         renderScanItemsList();
       }
 
@@ -6622,14 +6658,14 @@
         return false;
       }
 
-      // PENTING: mulai sekarang, carry-over otomatis sisa bulan sebelumnya
-      // ke alokasi bulan berikutnya HANYA berlaku untuk kelompok "Kebutuhan"
-      // (k) dan "Jajan/Keinginan" (w). Kelompok Tabungan, Dana Darurat,
-      // Healing & Hiburan, dan Investasi TIDAK auto-carry jadi alokasi
-      // bulan depan — sisanya berhenti sebagai saldo "Celengan" (lihat
-      // hitungCelengan()) dan cuma bisa dipakai lewat tombol
-      // "Pakai Saldo Celengan" yang terpisah dari tambah transaksi biasa.
-      const AUTO_CARRY_GROUPS = ["k", "w", "d"];
+      // PENTING: carry-over otomatis sisa bulan sebelumnya ke alokasi bulan
+      // berikutnya berlaku untuk Daily Life dan semua kelompok pengeluaran
+      // rutin (Makan, Transportasi, Laundry, Jajan, Kuota Internet,
+      // Perawatan Diri, Kuliah). Kelompok Tabungan, Dana Darurat, Dana
+      // Insidental, dan Investasi TIDAK auto-carry — sisanya berhenti
+      // sebagai saldo "Celengan" (lihat hitungCelengan()) dan cuma bisa
+      // dipakai lewat tombol "Pakai Saldo Celengan".
+      const AUTO_CARRY_GROUPS = ["d", "k", "r", "l", "w", "q", "p", "u"];
 
       async function syncCarryoversUpToCurrent() {
         const targetLimit = thisYm();
@@ -6704,24 +6740,13 @@
           0,
         );
 
-        const allocations = {
-          d: budgetAllocation(rows, "d"),
-          k: budgetAllocation(rows, "k"),
-          w: budgetAllocation(rows, "w"),
-          t: budgetAllocation(rows, "t"),
-          c: budgetAllocation(rows, "c"),
-          h: budgetAllocation(rows, "h"),
-          e: budgetAllocation(rows, "e"),
-        };
-        const used = {
-          d: sumOutByGroup(rows, "d"),
-          k: sumOutByGroup(rows, "k"),
-          w: sumOutByGroup(rows, "w"),
-          t: sumOutByGroup(rows, "t"),
-          c: sumOutByGroup(rows, "c"),
-          h: sumOutByGroup(rows, "h"),
-          e: sumOutByGroup(rows, "e"),
-        };
+        const groupKeys = Object.keys(BUDGET_GROUPS);
+        const allocations = Object.fromEntries(
+          groupKeys.map((g) => [g, budgetAllocation(rows, g)]),
+        );
+        const used = Object.fromEntries(
+          groupKeys.map((g) => [g, sumOutByGroup(rows, g)]),
+        );
 
         const saldo = totalIn + totalSBL + totalCarry - totalOut;
         document.getElementById("heroSaldo").textContent = fmt(saldo);
@@ -6778,18 +6803,12 @@
           </div>`;
         }
 
-        document.getElementById("budgetCards").innerHTML = [
-          cardHtml("d", carryTag("d")),
-          cardHtml("k", sblTag + carryTag("k")),
-          cardHtml("w", carryTag("w")),
-          cardHtml("t", carryTag("t")),
-          cardHtml("c", carryTag("c")),
-          cardHtml("h", carryTag("h")),
-          cardHtml("e", carryTag("e")),
-        ].join("");
+        document.getElementById("budgetCards").innerHTML = groupKeys
+          .map((g) => cardHtml(g, (g === "k" ? sblTag : "") + carryTag(g)))
+          .join("");
       }
 
-      function drawDonutBudget(k, w, t, cad, h, e, d = 0) {
+      function drawDonutBudget(vals) {
         const cv = document.getElementById("donutBudget"),
           ctx = cv.getContext("2d");
         const W = cv.width,
@@ -6798,7 +6817,7 @@
           cy = H / 2,
           r = Math.min(W, H) / 2 - 10,
           inner = r * 0.56;
-        const total = k + w + t + cad + h + e + d;
+        const total = Object.values(vals).reduce((sum, v) => sum + (v || 0), 0);
         const legend = document.getElementById("legendBudget");
         ctx.clearRect(0, 0, W, H);
         if (!total) {
@@ -6819,66 +6838,14 @@
           cv.ontouchstart = null;
           return;
         }
-        const slices = [
-          {
-            key: "d",
-            icon: "🌤️",
-            name: "Daily Life Budget",
-            l: "Daily Life Budget",
-            v: d,
-            c: "#3fb67a",
-          },
-          {
-            key: "k",
-            icon: "🧾",
-            name: "Kebutuhan",
-            l: "Kebutuhan",
-            v: k,
-            c: "#ff7a8a",
-          },
-          {
-            key: "w",
-            icon: "💅",
-            name: "Jajan/Keinginan",
-            l: "Jajan/Keinginan",
-            v: w,
-            c: "#d66ba0",
-          },
-          {
-            key: "t",
-            icon: "🏦",
-            name: "Tabungan",
-            l: "Tabungan",
-            v: t,
-            c: "#8b7cf6",
-            pct: 15,
-          },
-          {
-            key: "c",
-            icon: "🛡️",
-            name: "Dana Darurat",
-            l: "Dana Darurat",
-            v: cad,
-            c: "#f4b860",
-          },
-          {
-            key: "h",
-            icon: "🎟️",
-            name: "Healing & Hiburan",
-            l: "Healing & Hiburan",
-            v: h,
-            c: "#67b7dc",
-          },
-          {
-            key: "e",
-            icon: "🪙",
-            name: "Investasi",
-            l: "Investasi",
-            v: e,
-            c: "#d9a441",
-            pct: 5,
-          },
-        ];
+        const slices = Object.entries(BUDGET_GROUPS).map(([key, b]) => ({
+          key,
+          icon: b.icon,
+          name: b.label,
+          l: b.label,
+          v: vals[key] || 0,
+          c: BUDGET_GROUP_COLORS[key],
+        }));
         let a = -Math.PI / 2;
         slices.forEach((s) => {
           const sw = (s.v / total) * Math.PI * 2;
@@ -6979,13 +6946,7 @@
         const repRows = rowsForMonth(currentMonth);
         const al = (g) => budgetAllocation(repRows, g);
         drawDonutBudget(
-          al("k"),
-          al("w"),
-          al("t"),
-          al("c"),
-          al("h"),
-          al("e"),
-          al("d"),
+          Object.fromEntries(Object.keys(BUDGET_GROUPS).map((g) => [g, al(g)])),
         );
         drawBar();
         drawDailyBudget();
@@ -7736,10 +7697,15 @@
       const BUDGET_GROUP_COLORS = {
         d: "#3fb67a",
         k: "#ff7a8a",
+        r: "#67b7dc",
+        l: "#7fc8a9",
         w: "#d66ba0",
+        q: "#4f8cff",
+        p: "#ffb3c7",
+        u: "#c79a5b",
         t: "#8b7cf6",
         c: "#f4b860",
-        h: "#67b7dc",
+        h: "#f08a5d",
         e: "#d9a441",
       };
 
@@ -8041,7 +8007,7 @@
         document.getElementById("celenganGrid").innerHTML = `
       <div class="cel-box t" onclick="toggleCelTable();showToast('🏦 Sisa Tabungan saat ini: ${fmt(totalT)}')"><div class="cel-icon">🏦</div><div><div class="cel-label">Sisa Tabungan</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalT)}</div></div></div>
       <div class="cel-box c" onclick="toggleCelTable();showToast('🛡️ Dana Darurat saat ini: ${fmt(totalC)}')"><div class="cel-icon">🛡️</div><div><div class="cel-label">Dana Darurat</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalC)}</div></div></div>
-      <div class="cel-box h" onclick="toggleCelTable();showToast('🎟️ Healing & Hiburan saat ini: ${fmt(totalH)}')"><div class="cel-icon">🎟️</div><div><div class="cel-label">Healing & Hiburan</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalH)}</div></div></div>
+      <div class="cel-box h" onclick="toggleCelTable();showToast('🧰 Dana Insidental saat ini: ${fmt(totalH)}')"><div class="cel-icon">🧰</div><div><div class="cel-label">Dana Insidental</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalH)}</div></div></div>
       <div class="cel-box e" onclick="toggleCelTable();showToast('🪙 Investasi saat ini: ${fmt(totalE)}')"><div class="cel-icon">🪙</div><div><div class="cel-label">Investasi</div><div class="cel-sub">Saldo terkini · ketuk lihat tabel</div><div class="cel-val">${fmt(totalE)}</div></div></div>`;
         const tbody = document.getElementById("celenganTbody"),
           empty = document.getElementById("celenganEmpty");
